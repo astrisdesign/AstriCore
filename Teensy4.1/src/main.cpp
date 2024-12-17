@@ -8,26 +8,26 @@
 void ControlTask() {
     while(true) {
         Serial.println("ControlTask");
-        digitalWrite(LED_BUILTIN, HIGH); // blink on and off while waiting for a quarter second
-        threads.delay(125);
+        digitalWrite(LED_BUILTIN, HIGH); // blink on and off while waiting for a quarter second-ish
+        threads.delay(127);
         // turn the LED off by making the voltage LOW
         digitalWrite(LED_BUILTIN, LOW);
         // wait for a quarter second
-        threads.delay(125);
+        threads.delay(127);
     }
 }
 
 void SensorTask() {
     while(true) {
         Serial.println("SensorTask");
-        threads.delay(500);
+        threads.delay(499);
     }
 }
 
 void CommsTask() {
     while(true) {
         Serial.println("CommsTask");
-        threads.delay(1000);
+        threads.delay(997);
     }
 }
 
