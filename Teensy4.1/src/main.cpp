@@ -4,6 +4,7 @@
 
 #include <Arduino.h>
 #include <TeensyThreads.h>
+#include <Teensy41_Pinout.h>
 
 void ControlTask() {
     while(true) {
