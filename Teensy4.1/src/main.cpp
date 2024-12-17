@@ -33,6 +33,7 @@ void CommsTask() {
 
 void setup() {
     Serial.begin(115200);
+    pinMode(LED_BUILTIN, OUTPUT);  // LED pin is output
     delay(10); // Wait for serial port to connect
     threads.addThread(ControlTask);
     threads.addThread(SensorTask);
