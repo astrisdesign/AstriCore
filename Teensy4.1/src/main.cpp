@@ -1,5 +1,5 @@
 /*
- * Motor testing - is this too pulse rate too slow?
+ * THIS SPINS THE MOTOR
  */
 
 #include <Arduino.h>
