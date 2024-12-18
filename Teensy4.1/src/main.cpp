@@ -15,14 +15,15 @@ const int enable1 = pin35;
 // Motor control and mutex variables
 AccelStepper stepper1(AccelStepper::DRIVER, pulse1, dir1);
 Threads::Mutex motorMutex;
-volatile long target_position = 1000;
+volatile long target_position = 10000;
 
 void ControlTask() {
     // Initialize stepper parameters
-    stepper1.setMaxSpeed(1000);
-    stepper1.setAcceleration(500);
+    stepper1.setMaxSpeed(10000);
+    stepper1.setAcceleration(5000);
+    stepper1.setMinPulseWidth(3);     // Set minimum pulse width to 3μs
     stepper1.moveTo(target_position);
-    
+
     while(true) {
         digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN)); // Toggle LED
         
