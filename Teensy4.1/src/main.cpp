@@ -1,25 +1,39 @@
 /*
- * THIS SPINS THE MOTOR
+ * Attempting AccelStepper
  */
 
 #include <Arduino.h>
 #include <TeensyThreads.h>
 #include <Teensy41_Pinout.h>
+#include <AccelStepper.h>
 
 // Motor 1 pin definition
 const int pulse1 = pin33;
 const int dir1 = pin34;
 const int enable1 = pin35;
 
+// Motor control and mutex variables
+AccelStepper stepper1(AccelStepper::DRIVER, pulse1, dir1);
+Threads::Mutex motorMutex;
+volatile long target_position = 1000;
+
 void ControlTask() {
+    // Initialize stepper parameters
+    stepper1.setMaxSpeed(1000);
+    stepper1.setAcceleration(500);
+    stepper1.moveTo(target_position);
+    
     while(true) {
-        Serial.println("ControlTask");
-        digitalWrite(LED_BUILTIN, HIGH); // blink on before pulse
-        digitalWrite(pulse1, HIGH);
-        threads.delay(1);
-        digitalWrite(pulse1, LOW);
-        digitalWrite(LED_BUILTIN, LOW); // blink off after pulse
-        threads.delay(1);
+        digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN)); // Toggle LED
+        
+        motorMutex.lock();
+        if(stepper1.targetPosition() != target_position) {
+            stepper1.moveTo(target_position);
+        }
+        motorMutex.unlock();
+        
+        stepper1.run();
+        threads.yield();
     }
 }
 
@@ -33,6 +47,12 @@ void SensorTask() {
 void CommsTask() {
     while(true) {
         Serial.println("CommsTask");
+        
+        // Add position control
+        motorMutex.lock();
+        target_position = -target_position;
+        motorMutex.unlock();
+        
         threads.delay(997);
     }
 }
