@@ -1,5 +1,6 @@
 /*
- * Attempting AccelStepper
+ * AccelStepper motor control implementation. The motor setpoint is chaotic because the
+ * target position changes in an asynchronous thread. Not sure what to think of that...
  */
 
 #include <Arduino.h>
