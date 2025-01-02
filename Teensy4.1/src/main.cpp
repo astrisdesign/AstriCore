@@ -13,28 +13,42 @@ const int pulse1 = pin33;
 const int dir1 = pin34;
 const int enable1 = pin35;
 
+// Motor 2 pin definition
+const int pulse2 = pin30;
+const int dir2 = pin31;
+const int enable2 = pin32;
+
 // Motor control and mutex variables
 AccelStepper stepper1(AccelStepper::DRIVER, pulse1, dir1);
+AccelStepper stepper2(AccelStepper::DRIVER, pulse2, dir2);
 Threads::Mutex motorMutex;
-volatile long target_position = 10000;
+volatile long target_position1 = 4000;
+volatile long target_position2 = -4000;
 
 void ControlTask() {
     // Initialize stepper parameters
     stepper1.setMaxSpeed(10000);
     stepper1.setAcceleration(5000);
     stepper1.setMinPulseWidth(3);     // Set minimum pulse width to 3μs
-    stepper1.moveTo(target_position);
+
+    stepper2.setMaxSpeed(10000);
+    stepper2.setAcceleration(5000);
+    stepper2.setMinPulseWidth(3);     // Set minimum pulse width to 3μs
 
     while(true) {
         digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN)); // Toggle LED
         
         motorMutex.lock();
-        if(stepper1.targetPosition() != target_position) {
-            stepper1.moveTo(target_position);
+        if(stepper1.targetPosition() != target_position1) {
+            stepper1.moveTo(target_position1);
         }
-        motorMutex.unlock();
-        
+        if(stepper2.targetPosition() != target_position2) {
+            stepper2.moveTo(target_position2);
+        }       
         stepper1.run();
+        stepper2.run();
+        motorMutex.unlock();
+
         threads.yield();
     }
 }
@@ -52,10 +66,11 @@ void CommsTask() {
         
         // Add position control
         motorMutex.lock();
-        target_position = -target_position;
+        target_position1 = -target_position1;
+        target_position2 = -target_position2;
         motorMutex.unlock();
         
-        threads.delay(997);
+        threads.delay(2000);
     }
 }
 
@@ -65,12 +80,19 @@ void setup() {
     // Pin definitions
     pinMode(LED_BUILTIN, OUTPUT);  // LED pin is output
     pinMode(pulse1, OUTPUT);
+    pinMode(pulse2, OUTPUT);
     pinMode(dir1, OUTPUT);
+    pinMode(dir2, OUTPUT);
     pinMode(enable1, OUTPUT);
+    pinMode(enable2, OUTPUT);
 
+    // Initial levels
     digitalWrite(pulse1, LOW); // Start pulse low
+    digitalWrite(pulse2, LOW); // Start pulse low
     digitalWrite(dir1, LOW); // Start with known dir
-    digitalWrite(enable1, LOW); // enable DM860T 
+    digitalWrite(dir2, HIGH); // Start with known dir
+    digitalWrite(enable1, LOW); // enable DM860T 1
+    digitalWrite(enable2, LOW); // enable DM860T 2
 
     delay(200); // Wait for DM860T to enable
 
