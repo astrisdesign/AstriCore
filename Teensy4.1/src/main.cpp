@@ -33,10 +33,10 @@ void ControlTask() {
         
         motorMutex.lock();
         if(stepper1.speed() != target_speed1) {
-            prevDir = stepper1.speed() > 0;
-            stepper1.setSpeed(target_speed1);  // Set new speed instead of position
+            prevDir = stepper1.speed() > 0;  // record direction before speed change
+            stepper1.setSpeed(target_speed1);
             if(prevDir != (stepper1.speed() > 0)) {
-                digitalWrite(dir2, !prevDir); // #---- NOTE ----# This is opposite direction for Motor 2. Change to prevDir in final setup
+                digitalWrite(dir2, prevDir); // #---- NOTE ----# This is opposite direction for Motor 2. Change to !prevDir in final setup
             }
         }
     
