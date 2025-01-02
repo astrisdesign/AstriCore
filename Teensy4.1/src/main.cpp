@@ -28,12 +28,12 @@ volatile long target_position2 = -4000;
 void ControlTask() {
     // Initialize stepper parameters
     stepper1.setMaxSpeed(10000);
-    stepper1.setAcceleration(5000);
-    stepper1.setMinPulseWidth(3);     // Set minimum pulse width to 3μs
+    stepper1.setAcceleration(15000);
+    stepper1.setMinPulseWidth(3);
 
     stepper2.setMaxSpeed(10000);
-    stepper2.setAcceleration(5000);
-    stepper2.setMinPulseWidth(3);     // Set minimum pulse width to 3μs
+    stepper2.setAcceleration(15000);
+    stepper2.setMinPulseWidth(3);
 
     while(true) {
         digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN)); // Toggle LED
