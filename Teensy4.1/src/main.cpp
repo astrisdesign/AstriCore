@@ -22,16 +22,16 @@ const int enable2 = pin32;
 AccelStepper stepper1(AccelStepper::DRIVER, pulse1, dir1);
 AccelStepper stepper2(AccelStepper::DRIVER, pulse2, dir2);
 Threads::Mutex motorMutex;
-volatile long target_position1 = 4000;
-volatile long target_position2 = -4000;
+volatile long target_position1 = 4500;
+volatile long target_position2 = -4500;
 
 void ControlTask() {
     // Initialize stepper parameters
-    stepper1.setMaxSpeed(20000);
+    stepper1.setMaxSpeed(50000);
     stepper1.setAcceleration(25000);
     stepper1.setMinPulseWidth(3);
 
-    stepper2.setMaxSpeed(20000);
+    stepper2.setMaxSpeed(50000);
     stepper2.setAcceleration(25000);
     stepper2.setMinPulseWidth(3);
 
