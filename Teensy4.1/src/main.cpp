@@ -19,7 +19,7 @@ const int enable2 = pin32;
 // Motor control and mutex variables
 AccelStepper stepper1(AccelStepper::DRIVER, pulse1, dir1);
 Threads::Mutex motorMutex;
-volatile float speed = 1000;  // speed value for testing. 40000 is fast
+volatile float speed = 40000;  // speed value for testing. 40000 is close to max
 volatile float target_speed1 = -speed;  // Initial speed in steps/second
 
 void ControlTask() {
@@ -75,7 +75,7 @@ void CommsTask() {
         threads.delay(200);
 
         motorMutex.lock();
-        target_speed1 = speed; // reverse
+        target_speed1 = -speed; // reverse
         motorMutex.unlock();
         threads.delay(2000);
     }
