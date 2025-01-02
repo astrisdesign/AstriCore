@@ -27,11 +27,11 @@ volatile long target_position2 = -45000;
 
 void ControlTask() {
     // Initialize stepper parameters
-    stepper1.setMaxSpeed(200000);
+    stepper1.setMaxSpeed(50000);
     stepper1.setAcceleration(200000);
     stepper1.setMinPulseWidth(3);
 
-    stepper2.setMaxSpeed(200000);
+    stepper2.setMaxSpeed(50000);
     stepper2.setAcceleration(200000);
     stepper2.setMinPulseWidth(3);
 
