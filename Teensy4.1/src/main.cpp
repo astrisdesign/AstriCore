@@ -1,6 +1,5 @@
 /*
- * AccelStepper motor control implementation. The motor setpoint is chaotic because the
- * target position changes in an asynchronous thread. Not sure what to think of that...
+ * AccelStepper motor control implementation.
  */
 
 #include <Arduino.h>
@@ -20,7 +19,7 @@ const int enable2 = pin32;
 // Motor control and mutex variables
 AccelStepper stepper1(AccelStepper::DRIVER, pulse1, dir1);
 Threads::Mutex motorMutex;
-volatile long target_position1 = 45000;
+volatile float target_speed1 = 1000;  // Initial speed in steps/second (replaces target_position1)
 
 void ControlTask() {
     // Initialize stepper parameters
@@ -33,15 +32,15 @@ void ControlTask() {
         digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN)); // Toggle LED
         
         motorMutex.lock();
-        if(stepper1.targetPosition() != target_position1) {
+        if(stepper1.speed() != target_speed1) {
             prevDir = stepper1.speed() > 0;
-            stepper1.moveTo(target_position1);
+            stepper1.setSpeed(target_speed1);  // Set new speed instead of position
             if(prevDir != (stepper1.speed() > 0)) {
                 digitalWrite(dir2, !prevDir); // #---- NOTE ----# This is opposite direction for Motor 2. Change to prevDir in final setup
             }
         }
     
-        stepper1.run();
+        stepper1.runSpeed();  // Use runSpeed() instead of run()
         motorMutex.unlock();
 
         threads.yield();
@@ -59,12 +58,11 @@ void CommsTask() {
     while(true) {
         Serial.println("CommsTask");
         
-        // Add position control
         motorMutex.lock();
-        target_position1 = -target_position1;
+        target_speed1 = -target_speed1;  // Reverse direction by negating speed
         motorMutex.unlock();
         
-        threads.delay(3000);
+        threads.delay(2000);
     }
 }
 
