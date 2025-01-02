@@ -70,7 +70,7 @@ void CommsTask() {
         target_position2 = -target_position2;
         motorMutex.unlock();
         
-        threads.delay(2000);
+        threads.delay(3000);
     }
 }
 
