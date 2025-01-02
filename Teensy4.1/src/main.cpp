@@ -24,7 +24,7 @@ volatile long target_position1 = 45000;
 
 void ControlTask() {
     // Initialize stepper parameters
-    stepper1.setMaxSpeed(40000);
+    stepper1.setMaxSpeed(1000); // max 40000
     stepper1.setAcceleration(300000);
     stepper1.setMinPulseWidth(3);
     bool prevDir = stepper1.speed() > 0;
@@ -37,7 +37,7 @@ void ControlTask() {
             prevDir = stepper1.speed() > 0;
             stepper1.moveTo(target_position1);
             if(prevDir != (stepper1.speed() > 0)) {
-                digitalWrite(dir2, prevDir); // #---- NOTE ----# This is opposite direction for Motor 2. Change to !prevDir in final setup
+                digitalWrite(dir2, !prevDir); // #---- NOTE ----# This is opposite direction for Motor 2. Change to prevDir in final setup
             }
         }
     
