@@ -19,11 +19,12 @@ const int enable2 = pin32;
 // Motor control and mutex variables
 AccelStepper stepper1(AccelStepper::DRIVER, pulse1, dir1);
 Threads::Mutex motorMutex;
-volatile float target_speed1 = 1000;  // Initial speed in steps/second (replaces target_position1)
+volatile float speed = 1000;  // speed value for testing. 40000 is fast
+volatile float target_speed1 = -speed;  // Initial speed in steps/second
 
 void ControlTask() {
     // Initialize stepper parameters
-    stepper1.setMaxSpeed(1000); // max 40000
+    stepper1.setMaxSpeed(40000); 
     stepper1.setAcceleration(300000);
     stepper1.setMinPulseWidth(3);
     bool prevDir = stepper1.speed() > 0;
@@ -59,9 +60,23 @@ void CommsTask() {
         Serial.println("CommsTask");
         
         motorMutex.lock();
-        target_speed1 = -target_speed1;  // Reverse direction by negating speed
+        target_speed1 = 0;  // short pause
         motorMutex.unlock();
-        
+        threads.delay(200);
+
+        motorMutex.lock();
+        target_speed1 = speed; // forward
+        motorMutex.unlock();
+        threads.delay(2000);
+
+        motorMutex.lock();
+        target_speed1 = 0;  // short pause
+        motorMutex.unlock();
+        threads.delay(200);
+
+        motorMutex.lock();
+        target_speed1 = speed; // reverse
+        motorMutex.unlock();
         threads.delay(2000);
     }
 }
