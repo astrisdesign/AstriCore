@@ -8,45 +8,40 @@
 #include <Teensy41_Pinout.h>
 #include <AccelStepper.h>
 
-// Motor 1 pin definition
+// Motor 1 pin definition (AccelStepper inputs)
 const int pulse1 = pin33;
 const int dir1 = pin34;
 const int enable1 = pin35;
 
-// Motor 2 pin definition
-const int pulse2 = pin30;
+// Motor 2 pin definition (pulse hardwired to Motor 1)
 const int dir2 = pin31;
 const int enable2 = pin32;
 
 // Motor control and mutex variables
 AccelStepper stepper1(AccelStepper::DRIVER, pulse1, dir1);
-AccelStepper stepper2(AccelStepper::DRIVER, pulse2, dir2);
 Threads::Mutex motorMutex;
 volatile long target_position1 = 45000;
-volatile long target_position2 = -45000;
 
 void ControlTask() {
     // Initialize stepper parameters
     stepper1.setMaxSpeed(40000);
     stepper1.setAcceleration(300000);
     stepper1.setMinPulseWidth(3);
-
-    stepper2.setMaxSpeed(40000);
-    stepper2.setAcceleration(300000);
-    stepper2.setMinPulseWidth(3);
+    bool prevDir = stepper1.speed() > 0;
 
     while(true) {
         digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN)); // Toggle LED
         
         motorMutex.lock();
         if(stepper1.targetPosition() != target_position1) {
+            prevDir = stepper1.speed() > 0;
             stepper1.moveTo(target_position1);
+            if(prevDir != (stepper1.speed() > 0)) {
+                digitalWrite(dir2, prevDir); // #---- NOTE ----# This is opposite direction for Motor 2. Change to !prevDir in final setup
+            }
         }
-        if(stepper2.targetPosition() != target_position2) {
-            stepper2.moveTo(target_position2);
-        }       
+    
         stepper1.run();
-        stepper2.run();
         motorMutex.unlock();
 
         threads.yield();
@@ -67,7 +62,6 @@ void CommsTask() {
         // Add position control
         motorMutex.lock();
         target_position1 = -target_position1;
-        target_position2 = -target_position2;
         motorMutex.unlock();
         
         threads.delay(3000);
@@ -80,7 +74,6 @@ void setup() {
     // Pin definitions
     pinMode(LED_BUILTIN, OUTPUT);  // LED pin is output
     pinMode(pulse1, OUTPUT);
-    pinMode(pulse2, OUTPUT);
     pinMode(dir1, OUTPUT);
     pinMode(dir2, OUTPUT);
     pinMode(enable1, OUTPUT);
@@ -88,7 +81,6 @@ void setup() {
 
     // Initial levels
     digitalWrite(pulse1, LOW); // Start pulse low
-    digitalWrite(pulse2, LOW); // Start pulse low
     digitalWrite(dir1, LOW); // Start with known dir
     digitalWrite(dir2, HIGH); // Start with known dir
     digitalWrite(enable1, LOW); // enable DM860T 1
