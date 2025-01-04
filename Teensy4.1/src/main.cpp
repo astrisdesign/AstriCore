@@ -11,7 +11,7 @@
 class PulsePairSteppers {
     private:
     const int stepPin, dirPin1, dirPin2, enablePin1, enablePin2;
-    volatile int stepSpeed;
+    volatile int stepSpeed, dir, maxSpeed;
     volatile bool stepReady;
     IntervalTimer stepTimer;
     Threads::Mutex velocityMutex;
@@ -27,10 +27,10 @@ class PulsePairSteppers {
     }
 
 public:
-    PulsePairSteppers(int sp, int dp1, int dp2, int ep1, int ep2) : 
+    PulsePairSteppers(int sp, int dp1, int dp2, int ep1, int ep2, int maxSp = 40000) : 
         stepPin(sp), dirPin1(dp1), dirPin2(dp2),
         enablePin1(ep1), enablePin2(ep2),
-        stepSpeed(0), stepReady(false) {
+        stepSpeed(0), maxSpeed(maxSp), stepReady(false) {
         pinMode(stepPin, OUTPUT);
         pinMode(dirPin1, OUTPUT);
         pinMode(dirPin2, OUTPUT);
@@ -47,14 +47,15 @@ public:
 
     void setVelocity(int stepsPerSecond) {
         Threads::Scope lock(velocityMutex);
-        if (abs(stepsPerSecond) > 40000) {
-            stepsPerSecond = (stepsPerSecond > 0) ? 40000 : -40000;
+        if (abs(stepsPerSecond) > maxSpeed) { // Clip the speed within system operating limits
+            stepsPerSecond = (stepsPerSecond > 0) ? maxSpeed : -maxSpeed;
         }
         stepSpeed = stepsPerSecond;
-        
+        dir = getDirection();
+
         if(stepsPerSecond != 0) {
-            digitalWriteFast(dirPin1, stepsPerSecond > 0);
-            digitalWriteFast(dirPin2, stepsPerSecond < 0);
+            digitalWriteFast(dirPin1, dir);  // Motor 1 direction
+            digitalWriteFast(dirPin2, !dir); // Motor 2 direction. TEMPORARY reverse for test setup
             float period = 1000000.0f / abs(stepsPerSecond);
             stepTimer.begin(timerISR, period);  // Modified timer setup
         } else {
@@ -82,42 +83,55 @@ public:
         digitalWriteFast(enablePin1, HIGH);
         digitalWriteFast(enablePin2, HIGH);
     }
+
+    // Getters and setters
+    int getStepSpeed() const { return stepSpeed; }
+    bool isStepReady() const { return stepReady; }
+    bool getDirection() const { return (stepSpeed > 0); } // true for CCW, false for CW
+    void setMaxSpeed(int maxSp) { maxSpeed = abs(maxSp); } // Ensure it's non-negative
+
 };
 
 // Add static member initialization outside the class
 PulsePairSteppers* PulsePairSteppers::isrInstance = nullptr;
 
-// Replace AccelStepper instance with PulsePairSteppers
+// Define PulsePairSteppers motor control object
 volatile float speed = 10000;
 volatile float targetSpeed = -speed;
 Threads::Mutex motorMutex;
 PulsePairSteppers steppers(pin33, pin34, pin31, pin35, pin32);
 
-void ControlTask() {
+void ControlThread() {
+    int lastSpeed = 0;    // Cache for the last set speed
+    int currentSpeed = 0; // Cache current target speed
     while(true) {
         digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
         
-        motorMutex.lock();
-        int currentSpeed = targetSpeed;
-        motorMutex.unlock();
-        
-        steppers.setVelocity(currentSpeed);
+        {
+        Threads::Scope lock(motorMutex);
+        currentSpeed = targetSpeed;
+        }
+
+        if (currentSpeed != lastSpeed) { // Only update the velocity if it has changed
+            steppers.setVelocity(currentSpeed);
+            lastSpeed = currentSpeed;
+        }
+
         steppers.checkAndStep();
-        
         threads.yield();
     }
 }
 
-void SensorTask() {
+void SensorThread() {
     while(true) {
-        Serial.println("SensorTask");
+        Serial.println("SensorThread");
         threads.delay(499);
     }
 }
 
-void CommsTask() {
+void CommsThread() {
     while(true) {
-        Serial.println("CommsTask");
+        Serial.println("CommsThread");
         
         motorMutex.lock();
         targetSpeed = 0;  // short pause
@@ -151,9 +165,9 @@ void setup() {
     
     steppers.enable(); // Enable motors using class method
     
-    threads.addThread(ControlTask);
-    threads.addThread(SensorTask);
-    threads.addThread(CommsTask);
+    threads.addThread(ControlThread);
+    threads.addThread(SensorThread);
+    threads.addThread(CommsThread);
 }
 
 void loop() {
