@@ -4,46 +4,106 @@
 
 #include <Arduino.h>
 #include <TeensyThreads.h>
+#include <IntervalTimer.h>
 #include <Teensy41_Pinout.h>
-#include <AccelStepper.h>
 
-// Motor 1 pin definition (AccelStepper inputs)
-const int pulse1 = pin33;
-const int dir1 = pin34;
-const int enable1 = pin35;
+// Add the PulsePairSteppers class definition here
+class PulsePairSteppers {
+    private:
+    const int stepPin, dirPin1, dirPin2, enablePin1, enablePin2;
+    volatile int stepSpeed;
+    volatile bool stepReady;
+    IntervalTimer stepTimer;
+    Threads::Mutex velocityMutex;
+    
+    // Add static instance pointer
+    static PulsePairSteppers* isrInstance;
+    
+    // Modify ISR to be static without arguments
+    static void timerISR() {
+        if (isrInstance) {
+            isrInstance->stepReady = true;
+        }
+    }
 
-// Motor 2 pin definition (pulse hardwired to Motor 1)
-const int dir2 = pin31;
-const int enable2 = pin32;
+public:
+    PulsePairSteppers(int sp, int dp1, int dp2, int ep1, int ep2) : 
+        stepPin(sp), dirPin1(dp1), dirPin2(dp2),
+        enablePin1(ep1), enablePin2(ep2),
+        stepSpeed(0), stepReady(false) {
+        pinMode(stepPin, OUTPUT);
+        pinMode(dirPin1, OUTPUT);
+        pinMode(dirPin2, OUTPUT);
+        pinMode(enablePin1, OUTPUT);
+        pinMode(enablePin2, OUTPUT);
+        
+        digitalWriteFast(stepPin, LOW);
+        digitalWriteFast(dirPin1, LOW);
+        digitalWriteFast(dirPin2, HIGH);
+        digitalWriteFast(enablePin1, HIGH);  // Start disabled
+        digitalWriteFast(enablePin2, HIGH);
+        isrInstance = this;  // Set instance pointer
+    }
 
-// Motor control and mutex variables
-AccelStepper stepper1(AccelStepper::DRIVER, pulse1, dir1);
+    void setVelocity(int stepsPerSecond) {
+        Threads::Scope lock(velocityMutex);
+        if (abs(stepsPerSecond) > 40000) {
+            stepsPerSecond = (stepsPerSecond > 0) ? 40000 : -40000;
+        }
+        stepSpeed = stepsPerSecond;
+        
+        if(stepsPerSecond != 0) {
+            digitalWriteFast(dirPin1, stepsPerSecond > 0);
+            digitalWriteFast(dirPin2, stepsPerSecond < 0);
+            float period = 1000000.0f / abs(stepsPerSecond);
+            stepTimer.begin(timerISR, period);  // Modified timer setup
+        } else {
+            stepTimer.end();
+        }
+    }
+
+    bool checkAndStep() {
+        if(stepReady) {
+            digitalWriteFast(stepPin, HIGH);
+            delayMicroseconds(3);
+            digitalWriteFast(stepPin, LOW);
+            stepReady = false;
+            return true;
+        }
+        return false;
+    }
+
+    void enable() {
+        digitalWriteFast(enablePin1, LOW);
+        digitalWriteFast(enablePin2, LOW);
+    }
+
+    void disable() {
+        digitalWriteFast(enablePin1, HIGH);
+        digitalWriteFast(enablePin2, HIGH);
+    }
+};
+
+// Add static member initialization outside the class
+PulsePairSteppers* PulsePairSteppers::isrInstance = nullptr;
+
+// Replace AccelStepper instance with PulsePairSteppers
+volatile float speed = 10000;
+volatile float targetSpeed = -speed;
 Threads::Mutex motorMutex;
-volatile float speed = 10000;  // speed value for testing. 40000 is close to max
-volatile float target_speed1 = -speed;  // Initial speed in steps/second
+PulsePairSteppers steppers(pin33, pin34, pin31, pin35, pin32);
 
 void ControlTask() {
-    // Initialize stepper parameters
-    stepper1.setMaxSpeed(40000); 
-    stepper1.setAcceleration(300000);
-    stepper1.setMinPulseWidth(3);
-    bool prevDir = stepper1.speed() > 0;
-
     while(true) {
-        digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN)); // Toggle LED
+        digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
         
         motorMutex.lock();
-        if(stepper1.speed() != target_speed1) {
-            prevDir = stepper1.speed() > 0;  // record direction before speed change
-            stepper1.setSpeed(target_speed1);
-            if(prevDir != (stepper1.speed() > 0)) {
-                digitalWrite(dir2, prevDir); // #---- NOTE ----# This is opposite direction for Motor 2. Change to !prevDir in final setup
-            }
-        }
-    
-        stepper1.runSpeed();  // Use runSpeed() instead of run()
+        int currentSpeed = targetSpeed;
         motorMutex.unlock();
-
+        
+        steppers.setVelocity(currentSpeed);
+        steppers.checkAndStep();
+        
         threads.yield();
     }
 }
@@ -60,22 +120,22 @@ void CommsTask() {
         Serial.println("CommsTask");
         
         motorMutex.lock();
-        target_speed1 = 0;  // short pause
+        targetSpeed = 0;  // short pause
         motorMutex.unlock();
         threads.delay(200);
 
         motorMutex.lock();
-        target_speed1 = speed; // forward
+        targetSpeed = speed; // forward
         motorMutex.unlock();
         threads.delay(2000);
 
         motorMutex.lock();
-        target_speed1 = 0;  // short pause
+        targetSpeed = 0;  // short pause
         motorMutex.unlock();
         threads.delay(200);
 
         motorMutex.lock();
-        target_speed1 = -speed; // reverse
+        targetSpeed = -speed; // reverse
         motorMutex.unlock();
         threads.delay(2000);
     }
@@ -83,24 +143,14 @@ void CommsTask() {
 
 void setup() {
     Serial.begin(115200);
-
-    // Pin definitions
-    pinMode(LED_BUILTIN, OUTPUT);  // LED pin is output
-    pinMode(pulse1, OUTPUT);
-    pinMode(dir1, OUTPUT);
-    pinMode(dir2, OUTPUT);
-    pinMode(enable1, OUTPUT);
-    pinMode(enable2, OUTPUT);
-
-    // Initial levels
-    digitalWrite(pulse1, LOW); // Start pulse low
-    digitalWrite(dir1, LOW); // Start with known dir
-    digitalWrite(dir2, HIGH); // Start with known dir
-    digitalWrite(enable1, LOW); // enable DM860T 1
-    digitalWrite(enable2, LOW); // enable DM860T 2
-
-    delay(200); // Wait for DM860T to enable
-
+    
+    // Simplify pin setup - only LED needed as class handles other pins
+    pinMode(LED_BUILTIN, OUTPUT);
+    
+    delay(200); // Keep delay for DM860T startup
+    
+    steppers.enable(); // Enable motors using class method
+    
     threads.addThread(ControlTask);
     threads.addThread(SensorTask);
     threads.addThread(CommsTask);
