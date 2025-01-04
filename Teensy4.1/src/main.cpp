@@ -89,7 +89,6 @@ public:
     bool isStepReady() const { return stepReady; }
     bool getDirection() const { return (stepSpeed > 0); } // true for CCW, false for CW
     void setMaxSpeed(int maxSp) { maxSpeed = abs(maxSp); } // Ensure it's non-negative
-
 };
 
 // Add static member initialization outside the class
