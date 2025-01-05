@@ -11,18 +11,26 @@
 class PulsePairSteppers {
     private:
     const int stepPin, dirPin1, dirPin2, enablePin1, enablePin2;
+    volatile float lowPulseUs, highPulseUs;
     volatile int stepSpeed, dir, maxSpeed;
-    volatile bool stepReady;
+    volatile bool pulseState;
     IntervalTimer stepTimer;
     Threads::Mutex velocityMutex;
-    
+
     // Add static instance pointer
     static PulsePairSteppers* isrInstance;
     
     // Modify ISR to be static without arguments
     static void timerISR() {
         if (isrInstance) {
-            isrInstance->stepReady = true;
+            if (isrInstance->pulseState) {
+                digitalWriteFast(isrInstance->stepPin, LOW);  // End high pulse
+                isrInstance->stepTimer.update(isrInstance->lowPulseUs);   // Switch to low duration
+            } else {
+                digitalWriteFast(isrInstance->stepPin, HIGH); // Start high pulse
+                isrInstance->stepTimer.update(isrInstance->highPulseUs);   // Switch to high duration
+            }
+            isrInstance->pulseState = !isrInstance->pulseState;
         }
     }
 
@@ -30,7 +38,7 @@ public:
     PulsePairSteppers(int sp, int dp1, int dp2, int ep1, int ep2, int maxSp = 40000) : 
         stepPin(sp), dirPin1(dp1), dirPin2(dp2),
         enablePin1(ep1), enablePin2(ep2),
-        stepSpeed(0), maxSpeed(maxSp), stepReady(false) {
+        stepSpeed(0), maxSpeed(maxSp), pulseState(false) {
         pinMode(stepPin, OUTPUT);
         pinMode(dirPin1, OUTPUT);
         pinMode(dirPin2, OUTPUT);
@@ -39,9 +47,9 @@ public:
         
         digitalWriteFast(stepPin, LOW);
         digitalWriteFast(dirPin1, LOW);
-        digitalWriteFast(dirPin2, HIGH);
-        digitalWriteFast(enablePin1, HIGH);  // Start disabled
-        digitalWriteFast(enablePin2, HIGH);
+        digitalWriteFast(dirPin2, HIGH); // TEMPORARY - reversed dir from Motor 1 for testing setup
+        digitalWriteFast(enablePin1, HIGH); // Start disabled
+        digitalWriteFast(enablePin2, HIGH); // Start disabled
         isrInstance = this;  // Set instance pointer
     }
 
