@@ -1,5 +1,5 @@
 /*
- * AccelStepper motor control implementation.
+ * DIY motor control implementation.
  */
 
 #include <Arduino.h>
@@ -11,11 +11,10 @@
 class PulsePairSteppers {
     private:
     const int stepPin, dirPin1, dirPin2, enablePin1, enablePin2;
-    volatile float lowPulseUs, highPulseUs;
-    volatile int stepSpeed, dir, maxSpeed;
+    volatile float highPulseUs, lowPulseUs;
+    volatile int dir, stepSpeed, maxSpeed;
     volatile bool pulseState;
     IntervalTimer stepTimer;
-    Threads::Mutex velocityMutex;
 
     // Add static instance pointer
     static PulsePairSteppers* isrInstance;
@@ -35,9 +34,9 @@ class PulsePairSteppers {
     }
 
 public:
-    PulsePairSteppers(int sp, int dp1, int dp2, int ep1, int ep2, int maxSp = 40000) : 
+    PulsePairSteppers(int sp, int dp1, int dp2, int ep1, int ep2, int maxSp = 40000, float hP_Us = 3.0f) : 
         stepPin(sp), dirPin1(dp1), dirPin2(dp2),
-        enablePin1(ep1), enablePin2(ep2),
+        enablePin1(ep1), enablePin2(ep2), highPulseUs(hP_Us),
         stepSpeed(0), maxSpeed(maxSp), pulseState(false) {
         pinMode(stepPin, OUTPUT);
         pinMode(dirPin1, OUTPUT);
@@ -54,47 +53,44 @@ public:
     }
 
     void setVelocity(int stepsPerSecond) {
-        Threads::Scope lock(velocityMutex);
         if (abs(stepsPerSecond) > maxSpeed) { // Clip the speed within system operating limits
             stepsPerSecond = (stepsPerSecond > 0) ? maxSpeed : -maxSpeed;
         }
         stepSpeed = stepsPerSecond;
         dir = getDirection();
 
+        noInterrupts(); // prevent interrupts during setpoint and pin level changes
         if(stepsPerSecond != 0) {
             digitalWriteFast(dirPin1, dir);  // Motor 1 direction
             digitalWriteFast(dirPin2, !dir); // Motor 2 direction. TEMPORARY reverse for test setup
-            float period = 1000000.0f / abs(stepsPerSecond);
-            stepTimer.begin(timerISR, period);  // Modified timer setup
+            float totalPeriod = 1000000.0f / abs(stepsPerSecond);
+            lowPulseUs = totalPeriod - highPulseUs; // highPulseUs defined in construction
+
+            digitalWriteFast(stepPin, HIGH);  // Ensure stepPin starts HIGH
+            pulseState = true;                // Set pulseState to match HIGH
+            stepTimer.begin(timerISR, highPulseUs); // run high pulse cycle timer
         } else {
             stepTimer.end();
         }
-    }
-
-    bool checkAndStep() {
-        if(stepReady) {
-            digitalWriteFast(stepPin, HIGH);
-            delayMicroseconds(3);
-            digitalWriteFast(stepPin, LOW);
-            stepReady = false;
-            return true;
-        }
-        return false;
+        interrupts();
     }
 
     void enable() {
+        noInterrupts(); // prevent interrupts between driver pin signals
         digitalWriteFast(enablePin1, LOW);
         digitalWriteFast(enablePin2, LOW);
+        interrupts();
     }
 
     void disable() {
+        noInterrupts(); // prevent interrupts between driver pin signals
         digitalWriteFast(enablePin1, HIGH);
         digitalWriteFast(enablePin2, HIGH);
+        interrupts();
     }
 
     // Getters and setters
     int getStepSpeed() const { return stepSpeed; }
-    bool isStepReady() const { return stepReady; }
     bool getDirection() const { return (stepSpeed > 0); } // true for CCW, false for CW
     void setMaxSpeed(int maxSp) { maxSpeed = abs(maxSp); } // Ensure it's non-negative
 };
@@ -103,7 +99,7 @@ public:
 PulsePairSteppers* PulsePairSteppers::isrInstance = nullptr;
 
 // Define PulsePairSteppers motor control object
-volatile float speed = 10000;
+volatile float speed = 1000; // TEMPORARY - init to 0 when done with testing. ------------------------------------ # INITIAL SPEED SETTING #
 volatile float targetSpeed = -speed;
 Threads::Mutex motorMutex;
 PulsePairSteppers steppers(pin33, pin34, pin31, pin35, pin32);
@@ -112,10 +108,10 @@ void ControlThread() {
     int lastSpeed = 0;    // Cache for the last set speed
     int currentSpeed = 0; // Cache current target speed
     while(true) {
-        digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-        
+        digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN)); // TEMPORARY LED blinks for testing
+
         {
-        Threads::Scope lock(motorMutex);
+        Threads::Scope lock(motorMutex); // motorMutex prevents race accessing targetSpeed
         currentSpeed = targetSpeed;
         }
 
@@ -124,7 +120,6 @@ void ControlThread() {
             lastSpeed = currentSpeed;
         }
 
-        steppers.checkAndStep();
         threads.yield();
     }
 }
