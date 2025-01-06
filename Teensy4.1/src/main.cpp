@@ -1,5 +1,5 @@
 /*
- * DIY motor control implementation.
+ * DIY motor control implementation with acceleration.
  */
 
 #include <Arduino.h>
