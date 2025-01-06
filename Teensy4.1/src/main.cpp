@@ -108,7 +108,7 @@ public:
 PulsePairSteppers* PulsePairSteppers::isrInstance = nullptr;
 
 // Define PulsePairSteppers motor control object
-volatile float speed = 1000; // TEMPORARY - init to 0 when done with testing. ------------------------------------ # INITIAL SPEED SETTING #
+volatile float speed = 5000; // TEMPORARY - init to 0 when done with testing. ------------------------------------ # INITIAL SPEED SETTING #
 volatile float targetSpeed = -speed;
 Threads::Mutex motorMutex;
 PulsePairSteppers steppers(pin33, pin34, pin31, pin35, pin32);
