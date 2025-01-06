@@ -14,6 +14,8 @@ class PulsePairSteppers {
     volatile float highPulseUs, lowPulseUs;
     volatile int dir, stepSpeed, maxSpeed, maxAccel, accelStepCount, velocityIncr, pulseCount;
     volatile bool pulseState;
+    static const int MAX_SPEED_LIMIT = 40000;
+    static const int MAX_ACCEL_LIMIT = 100000;
     IntervalTimer stepTimer;
 
     // Add static instance pointer
@@ -123,21 +125,26 @@ public:
     // Getters and setters
     int getStepSpeed() const { return stepSpeed; }
     bool getDirection() const { return (stepSpeed > 0); } // true for CCW, false for CW
-    void setMaxSpeed(int maxSp) { maxSpeed = abs(maxSp); } // Ensure it's non-negative
+    int getMaxSpeed() const { return maxSpeed; }
+    int getMaxAccel() const { return maxAccel; }
+    void setMaxSpeed(int maxSp) { maxSpeed = min(MAX_SPEED_LIMIT, abs(maxSp)); } // Used to clip stepsPerSecond. Hard upper limit.
+    void setMaxAccel(int accel) { maxAccel = min(MAX_ACCEL_LIMIT, abs(accel)); } // Changes motor acceleration. Hard upper limit.
 };
 
 // Add static member initialization outside the class
 PulsePairSteppers* PulsePairSteppers::isrInstance = nullptr;
 
 // Define PulsePairSteppers motor control object
-volatile float speed = 1000; // TEMPORARY - init to 0 when done with testing. ------------------------------------ # INITIAL SPEED SETTING #
-volatile float targetSpeed = -speed;
+volatile int speed = 10000; // TEMPORARY - init to 0 when done with testing. ------------------------------------ # TARGET SPEED SETTING #
+volatile int targetSpeed = -speed;
 Threads::Mutex motorMutex;
 PulsePairSteppers steppers(pin33, pin34, pin31, pin35, pin32);
 
 void ControlThread() {
     int lastSpeed = 0;    // Cache for the last set speed
     int currentSpeed = 0; // Cache current target speed
+    steppers.setMaxAccel(10000); // ------------------------------------------------------------------------------ # ACCELERATION SETTING #
+
     while(true) {
         digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN)); // TEMPORARY LED blinks for testing
 
