@@ -12,7 +12,7 @@ class PulsePairSteppers {
     private:
     const int stepPin, dirPin1, dirPin2, enablePin1, enablePin2;
     volatile float highPulseUs, lowPulseUs;
-    volatile int dir, stepSpeed, maxSpeed;
+    volatile int dir, stepSpeed, maxSpeed, maxAccel, accelStepCount, velocityIncr, pulseCount;
     volatile bool pulseState;
     IntervalTimer stepTimer;
 
@@ -33,11 +33,34 @@ class PulsePairSteppers {
         }
     }
 
+    void updateVelocity(int stepsPerSecond) { // Changes velocity setpoint instantaneously.
+        if (abs(stepsPerSecond) > maxSpeed) { // Clip the speed within system operating limits
+            stepsPerSecond = (stepsPerSecond > 0) ? maxSpeed : -maxSpeed;
+        }
+        stepSpeed = stepsPerSecond;
+        dir = getDirection();
+        
+        noInterrupts(); // prevent interrupts during setpoint and pin level changes
+        if(stepSpeed != 0) {
+            digitalWriteFast(dirPin1, dir);  // Motor 1 direction
+            digitalWriteFast(dirPin2, !dir); // Motor 2 direction. TEMPORARY reverse for test setup
+            float totalPeriod = 1000000.0f / abs(stepSpeed);
+            lowPulseUs = totalPeriod - highPulseUs; // highPulseUs defined in construction
+
+            digitalWriteFast(stepPin, HIGH);  // Ensure stepPin starts HIGH
+            pulseState = true;                // Set pulseState to match HIGH
+            stepTimer.begin(timerISR, highPulseUs); // run high pulse cycle timer
+        } else {
+            stepTimer.end();
+        }
+        interrupts();
+    }
+
 public:
-    PulsePairSteppers(int sp, int dp1, int dp2, int ep1, int ep2, int maxSp = 40000, float hP_Us = 3.0f) : 
-        stepPin(sp), dirPin1(dp1), dirPin2(dp2),
-        enablePin1(ep1), enablePin2(ep2), highPulseUs(hP_Us),
-        stepSpeed(0), maxSpeed(maxSp), pulseState(false) {
+    PulsePairSteppers(int sp, int dp1, int dp2, int ep1, int ep2, int maxSp = 40000, int maxAcc = 100000, float hP_Us = 3.0f) : 
+        stepPin(sp), dirPin1(dp1), dirPin2(dp2), enablePin1(ep1), enablePin2(ep2),
+        highPulseUs(hP_Us), stepSpeed(0), maxSpeed(maxSp), maxAccel(maxAcc), pulseState(false)
+        {
         pinMode(stepPin, OUTPUT);
         pinMode(dirPin1, OUTPUT);
         pinMode(dirPin2, OUTPUT);
@@ -52,29 +75,6 @@ public:
         isrInstance = this;  // Set instance pointer
     }
 
-    void setVelocity(int stepsPerSecond) {
-        if (abs(stepsPerSecond) > maxSpeed) { // Clip the speed within system operating limits
-            stepsPerSecond = (stepsPerSecond > 0) ? maxSpeed : -maxSpeed;
-        }
-        stepSpeed = stepsPerSecond;
-        dir = getDirection();
-
-        noInterrupts(); // prevent interrupts during setpoint and pin level changes
-        if(stepsPerSecond != 0) {
-            digitalWriteFast(dirPin1, dir);  // Motor 1 direction
-            digitalWriteFast(dirPin2, !dir); // Motor 2 direction. TEMPORARY reverse for test setup
-            float totalPeriod = 1000000.0f / abs(stepsPerSecond);
-            lowPulseUs = totalPeriod - highPulseUs; // highPulseUs defined in construction
-
-            digitalWriteFast(stepPin, HIGH);  // Ensure stepPin starts HIGH
-            pulseState = true;                // Set pulseState to match HIGH
-            stepTimer.begin(timerISR, highPulseUs); // run high pulse cycle timer
-        } else {
-            stepTimer.end();
-        }
-        interrupts();
-    }
-
     void enable() {
         noInterrupts(); // prevent interrupts between driver pin signals
         digitalWriteFast(enablePin1, LOW);
@@ -87,6 +87,23 @@ public:
         digitalWriteFast(enablePin1, HIGH);
         digitalWriteFast(enablePin2, HIGH);
         interrupts();
+    }
+
+    void setVelocity(int stepsPerSecond) { // Drives to target velocity in steps/s
+        noInterrupts();
+        int deltaV = stepsPerSecond - stepSpeed;
+        float time = deltaV / maxAccel;
+        float vAvg = (stepsPerSecond + stepSpeed) / 2;
+        accelStepCount = int(abs(time * vAvg)); // steps with constant velocity increment 'til target
+        velocityIncr = deltaV / accelStepCount; // constant velicity increment
+        pulseCount = 0;
+        interrupts();
+
+        for (; accelStepCount;) {
+            updateVelocity(getStepSpeed() + velocityIncr);
+            threads.yield();
+        }
+
     }
 
     // Getters and setters
