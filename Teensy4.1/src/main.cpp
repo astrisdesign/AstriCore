@@ -93,15 +93,25 @@ public:
     void setVelocity(int stepsPerSecond) { // Drives to target velocity in steps/s
         noInterrupts();
         int deltaV = stepsPerSecond - stepSpeed;
+        if (abs(deltaV) < 1) {
+            updateVelocity(stepsPerSecond);
+            interrupts();
+            return;
+        }
         float time = float(deltaV) / float(maxAccel);
         float vAvg = (float(stepsPerSecond) + float(stepSpeed)) / 2;
-        accelStepCount = int(abs(time * vAvg)); // steps with constant velocity increment 'til target
-        velocityIncr = deltaV / accelStepCount; // constant velocity increment
-        pulseCount = 0;
+        accelStepCount = max(1, int(abs(time * vAvg)));
+        velocityIncr = deltaV / accelStepCount;
+        
+        // Start pulses if currently stopped
+        if (stepSpeed == 0) {
+            updateVelocity(velocityIncr);  // Start with first increment
+            accelStepCount--;  // Adjust count since we've taken first step
+        }
         interrupts();
-
+ 
         bool lastPulseState = pulseState;
-        for (; accelStepCount;) {
+        for (int i = 0; i < accelStepCount; i++) {
             while (lastPulseState == pulseState) { // Wait for a full pulse cycle (pulse pin change)
                 threads.delay_us(2);  // Allow other threads to execute before pulse cycle finshes
             }
