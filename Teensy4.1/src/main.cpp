@@ -16,23 +16,43 @@ class PulsePairSteppers {
     volatile bool pulseState;
     static const int MAX_SPEED_LIMIT = 40000;
     static const int MAX_ACCEL_LIMIT = 100000;
-    IntervalTimer stepTimer;
+    IntervalTimer pulseTimer;
+    IntervalTimer accelTimer;  // New timer for acceleration control
+    static const uint32_t ACCEL_UPDATE_US = 1000; // 1kHz update rate
+    volatile int32_t currentStepSpeed = 0;
+    volatile int32_t targetStepSpeed = 0;
+    volatile int32_t maxDeltaV;
 
     // Add static instance pointer
     static PulsePairSteppers* isrInstance;
     
     // Modify ISR to be static without arguments
-    static void timerISR() {
+    static void pulseISR() {
         if (isrInstance) {
             if (isrInstance->pulseState) {
                 digitalWriteFast(isrInstance->stepPin, LOW);  // End high pulse
-                isrInstance->stepTimer.update(isrInstance->lowPulseUs);   // Switch to low duration
+                isrInstance->pulseTimer.update(isrInstance->lowPulseUs);   // Switch to low duration
             } else {
                 digitalWriteFast(isrInstance->stepPin, HIGH); // Start high pulse
-                isrInstance->stepTimer.update(isrInstance->highPulseUs);   // Switch to high duration
+                isrInstance->pulseTimer.update(isrInstance->highPulseUs);   // Switch to high duration
             }
             isrInstance->pulseState = !isrInstance->pulseState;
             isrInstance->pulseCount++;
+        }
+    }
+
+    // Add new acceleration ISR
+    static void accelISR() {
+        if (isrInstance) {
+            int32_t deltaV = isrInstance->targetStepSpeed - isrInstance->currentStepSpeed;
+            if (deltaV > isrInstance->maxDeltaV) {
+                isrInstance->currentStepSpeed += isrInstance->maxDeltaV;
+            } else if (deltaV < -isrInstance->maxDeltaV) {
+                isrInstance->currentStepSpeed -= isrInstance->maxDeltaV;
+            } else {
+                isrInstance->currentStepSpeed += deltaV;  // Add remaining delta
+            }
+            isrInstance->updateVelocity(isrInstance->currentStepSpeed);
         }
     }
 
@@ -52,9 +72,9 @@ class PulsePairSteppers {
 
             digitalWriteFast(stepPin, HIGH);  // Ensure stepPin starts HIGH
             pulseState = true;                // Set pulseState to match HIGH
-            stepTimer.begin(timerISR, highPulseUs); // run high pulse cycle timer
+            pulseTimer.begin(pulseISR, highPulseUs); // run high pulse cycle timer
         } else {
-            stepTimer.end();
+            pulseTimer.end();
         }
         interrupts();
     }
@@ -62,7 +82,7 @@ class PulsePairSteppers {
 public:
     PulsePairSteppers(int sp, int dp1, int dp2, int ep1, int ep2, int maxSp = 40000, int maxAcc = 100000, float hP_Us = 3.0f) : 
         stepPin(sp), dirPin1(dp1), dirPin2(dp2), enablePin1(ep1), enablePin2(ep2),
-        highPulseUs(hP_Us), stepSpeed(0), maxSpeed(maxSp), maxAccel(maxAcc), pulseState(false)
+        highPulseUs(hP_Us), stepSpeed(0), maxSpeed(maxSp), maxAccel(maxAcc), pulseState(false), currentStepSpeed(0), targetStepSpeed(0)
         {
         pinMode(stepPin, OUTPUT);
         pinMode(dirPin1, OUTPUT);
@@ -75,7 +95,9 @@ public:
         digitalWriteFast(dirPin2, HIGH); // TEMPORARY - reversed dir from Motor 1 for testing setup
         digitalWriteFast(enablePin1, HIGH); // Start disabled
         digitalWriteFast(enablePin2, HIGH); // Start disabled
-        isrInstance = this;  // Set instance pointer
+        maxDeltaV = (maxAcc * ACCEL_UPDATE_US) / 1000000;
+        accelTimer.begin(accelISR, ACCEL_UPDATE_US);
+        isrInstance = this;
     }
 
     void enable() {
@@ -92,34 +114,11 @@ public:
         interrupts();
     }
 
-    void setVelocity(int stepsPerSecond) { // Drives to target velocity in steps/s
-        noInterrupts();
-        int deltaV = stepsPerSecond - stepSpeed;
-        if (abs(deltaV) < 1) {
-            updateVelocity(stepsPerSecond);
-            interrupts();
-            return;
+    void setVelocity(int stepsPerSecond) {
+        if (abs(stepsPerSecond) > maxSpeed) {
+            stepsPerSecond = (stepsPerSecond > 0) ? maxSpeed : -maxSpeed;
         }
-        float time = float(deltaV) / float(maxAccel);
-        float vAvg = (float(stepsPerSecond) + float(stepSpeed)) / 2;
-        accelStepCount = max(1, int(abs(time * vAvg)));
-        velocityIncr = deltaV / accelStepCount;
-        
-        // Start pulses if currently stopped
-        if (stepSpeed == 0) {
-            updateVelocity(velocityIncr);  // Start with first increment
-            accelStepCount--;  // Adjust count since we've taken first step
-        }
-        interrupts();
- 
-        bool lastPulseState = pulseState;
-        for (int i = 0; i < accelStepCount; i++) {
-            while (lastPulseState == pulseState) { // Wait for a full pulse cycle (pulse pin change)
-                threads.delay_us(2);  // Allow other threads to execute before pulse cycle finshes
-            }
-            lastPulseState = pulseState;
-            updateVelocity(getStepSpeed() + velocityIncr);  // Change velocity towards target
-        }
+        targetStepSpeed = stepsPerSecond;
     }
 
     // Getters and setters
@@ -128,7 +127,10 @@ public:
     int getMaxSpeed() const { return maxSpeed; }
     int getMaxAccel() const { return maxAccel; }
     void setMaxSpeed(int maxSp) { maxSpeed = min(MAX_SPEED_LIMIT, abs(maxSp)); } // Used to clip stepsPerSecond. Hard upper limit.
-    void setMaxAccel(int accel) { maxAccel = min(MAX_ACCEL_LIMIT, abs(accel)); } // Changes motor acceleration. Hard upper limit.
+    void setMaxAccel(int accel) { // Changes motor acceleration. Hard upper limit.
+        maxAccel = min(MAX_ACCEL_LIMIT, abs(accel));
+        maxDeltaV = (maxAccel * ACCEL_UPDATE_US) / 1000000;
+    }
 };
 
 // Add static member initialization outside the class
