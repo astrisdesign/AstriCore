@@ -135,7 +135,7 @@ public:
 PulsePairSteppers* PulsePairSteppers::isrInstance = nullptr;
 
 // Define PulsePairSteppers motor control object
-volatile int speed = 10000; // TEMPORARY - init to 0 when done with testing. ------------------------------------ # TARGET SPEED SETTING #
+volatile int speed = 10000; // TEMPORARY - will be obsoleted by GUI inputs. ------------------------------------ # TARGET SPEED SETTING #
 volatile int targetSpeed = -speed;
 Threads::Mutex motorMutex;
 PulsePairSteppers steppers(pin33, pin34, pin31, pin35, pin32);
@@ -143,7 +143,7 @@ PulsePairSteppers steppers(pin33, pin34, pin31, pin35, pin32);
 void ControlThread() {
     int lastSpeed = 0;    // Cache for the last set speed
     int currentSpeed = 0; // Cache current target speed
-    steppers.setMaxAccel(1000); // ------------------------------------------------------------------------------ # ACCELERATION SETTING #
+    steppers.setMaxAccel(5000); // ------------------------------------------------------------------------------ # ACCELERATION SETTING #
 
     while(true) {
         digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN)); // TEMPORARY LED blinks for testing
