@@ -102,17 +102,12 @@ public:
 
         bool lastPulseState = pulseState;
         for (; accelStepCount;) {
-            updateVelocity(getStepSpeed() + velocityIncr);
             while (lastPulseState == pulseState) { // Wait for a full pulse cycle (pulse pin change)
-                threads.yield();  // Allow other threads to execute while waiting
+                threads.delay_us(2);  // Allow other threads to execute before pulse cycle finshes
             }
+            lastPulseState = pulseState;
+            updateVelocity(getStepSpeed() + velocityIncr);  // Change velocity towards target
         }
-
-        noInterrupts();
-        lastPulseState = pulseState;
-        updateVelocity(getStepSpeed() + velocityIncr);  // Change velocity towards target
-        interrupts();
-
     }
 
     // Getters and setters
