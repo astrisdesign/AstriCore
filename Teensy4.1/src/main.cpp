@@ -30,6 +30,7 @@ class PulsePairSteppers {
                 isrInstance->stepTimer.update(isrInstance->highPulseUs);   // Switch to high duration
             }
             isrInstance->pulseState = !isrInstance->pulseState;
+            isrInstance->pulseCount++;
         }
     }
 
@@ -92,17 +93,25 @@ public:
     void setVelocity(int stepsPerSecond) { // Drives to target velocity in steps/s
         noInterrupts();
         int deltaV = stepsPerSecond - stepSpeed;
-        float time = deltaV / maxAccel;
-        float vAvg = (stepsPerSecond + stepSpeed) / 2;
+        float time = float(deltaV) / float(maxAccel);
+        float vAvg = (float(stepsPerSecond) + float(stepSpeed)) / 2;
         accelStepCount = int(abs(time * vAvg)); // steps with constant velocity increment 'til target
-        velocityIncr = deltaV / accelStepCount; // constant velicity increment
+        velocityIncr = deltaV / accelStepCount; // constant velocity increment
         pulseCount = 0;
         interrupts();
 
+        bool lastPulseState = pulseState;
         for (; accelStepCount;) {
             updateVelocity(getStepSpeed() + velocityIncr);
-            threads.yield();
+            while (lastPulseState == pulseState) { // Wait for a full pulse cycle (pulse pin change)
+                threads.yield();  // Allow other threads to execute while waiting
+            }
         }
+
+        noInterrupts();
+        lastPulseState = pulseState;
+        updateVelocity(getStepSpeed() + velocityIncr);  // Change velocity towards target
+        interrupts();
 
     }
 
