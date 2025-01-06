@@ -143,7 +143,7 @@ PulsePairSteppers steppers(pin33, pin34, pin31, pin35, pin32);
 void ControlThread() {
     int lastSpeed = 0;    // Cache for the last set speed
     int currentSpeed = 0; // Cache current target speed
-    steppers.setMaxAccel(100); // ------------------------------------------------------------------------------ # ACCELERATION SETTING #
+    steppers.setMaxAccel(1000); // ------------------------------------------------------------------------------ # ACCELERATION SETTING #
 
     while(true) {
         digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN)); // TEMPORARY LED blinks for testing
