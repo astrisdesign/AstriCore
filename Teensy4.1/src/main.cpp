@@ -20,7 +20,7 @@ class PulsePairSteppers { // Class for controlling 2 stepper drivers from the sa
     void calculatePulseWait() { // pulseWait prevents runaway acceleration and motor lockout.
         bool accelerating = (abs(targetSpeed) > abs(stepSpeed)) && ((targetSpeed * stepSpeed) > 0);
         pulseWait = accelerating
-        ? ((abs(stepSpeed) - 5000) * 60) / maxSpeed   // acceleration profile
+        ? ((abs(stepSpeed) - 1500) * 1000) / maxSpeed   // acceleration profile
         : ((abs(stepSpeed) - 50) * 30) / maxSpeed;  // deceleration profile
         }
 
@@ -44,7 +44,7 @@ class PulsePairSteppers { // Class for controlling 2 stepper drivers from the sa
     }
 
 public:
-    PulsePairSteppers(int sp, int dp1, int dp2, int ep1, int ep2, int maxSp = 40000, float hP_Us = 3.0f) : 
+    PulsePairSteppers(int sp, int dp1, int dp2, int ep1, int ep2, int maxSp = 35000, float hP_Us = 3.0f) : 
         stepPin(sp), dirPin1(dp1), dirPin2(dp2),
         enablePin1(ep1), enablePin2(ep2), highPulseUs(hP_Us),
         stepSpeed(0), targetSpeed(0), maxSpeed(maxSp), maxDeltaV(800), pulseWait(0), pulseState(false) {
@@ -116,7 +116,7 @@ public:
 PulsePairSteppers* PulsePairSteppers::isrInstance = nullptr;
 
 // Define PulsePairSteppers motor control object
-volatile float speed = 40000; // TEMPORARY - init to 0 when done with testing. ------------------------------------ # INITIAL SPEED SETTING #
+volatile float speed = 1000; // TEMPORARY - init to 0 when done with testing. ------------------------------------ # INITIAL SPEED SETTING #
 volatile float targetSpeed = -speed;
 Threads::Mutex motorMutex;
 PulsePairSteppers steppers(pin33, pin34, pin31, pin35, pin32);
@@ -152,25 +152,57 @@ void CommsThread() {
     while(true) {
         Serial.println("CommsThread");
 
-        // motorMutex.lock();
-        // targetSpeed = 0;      // pause
-        // motorMutex.unlock();
-        // threads.delay(1);
-
+        for (int i = 0; i < 2; i++) {
         motorMutex.lock();
-        targetSpeed = speed;  // forward
+        targetSpeed = -speed;  // reverse A
         motorMutex.unlock();
-        threads.delay(1000);
-
-        // motorMutex.lock();
-        // targetSpeed = 0;      // pause
-        // motorMutex.unlock();
-        // threads.delay(1);
+        threads.delay(300);
 
         motorMutex.lock();
-        targetSpeed = -speed; // reverse
+        targetSpeed = 0;      // pause B
+        motorMutex.unlock();
+        threads.delay(400);
+
+        motorMutex.lock();
+        targetSpeed = speed; // fwd C
+        motorMutex.unlock();
+        threads.delay(300);
+
+        motorMutex.lock();
+        targetSpeed = 0;      // pause D
+        motorMutex.unlock();
+        threads.delay(400);
+        }
+
+        for (int i = 0; i < 1; i++) {
+            motorMutex.lock();
+            targetSpeed = 70 * speed;  // forward E
+            motorMutex.unlock();
+            threads.delay(2000);
+
+        for (int i = 0; i < 6; i++) {
+            motorMutex.lock();
+            targetSpeed = 100 * speed;  // forward F
+            motorMutex.unlock();
+            threads.delay(262);
+
+            motorMutex.lock();
+            targetSpeed = -100 * speed;      // reverse G
+            motorMutex.unlock();
+            threads.delay(238);
+        }
+        }
+
+        motorMutex.lock();
+        targetSpeed = -100 * speed; // reverse H
         motorMutex.unlock();
         threads.delay(2000);
+
+        motorMutex.lock();
+        targetSpeed = 0;      // pause I
+        motorMutex.unlock();
+        threads.delay(2000);
+
     }
 }
 
