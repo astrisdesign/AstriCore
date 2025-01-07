@@ -1,5 +1,5 @@
 /*
- * DIY motor control implementation with acceleration limiting.
+ * DIY motor control implementation with custom smooth acceleration.
  */
 
 #include <Arduino.h>
@@ -17,10 +17,8 @@ class PulsePairSteppers { // Class for controlling 2 stepper drivers from the sa
 
     static PulsePairSteppers* isrInstance; // Add static instance pointer
 
-    void calculatePulseWait() { // pulseWait prevents runaway acceleration.
-        pulseWait =  (stepSpeed < targetSpeed)
-            ? ((abs(stepSpeed) - 5000) * 60) / maxSpeed
-            : ((abs(stepSpeed) - 5000) * 60) / maxSpeed;
+    void calculatePulseWait() { // pulseWait prevents runaway acceleration and motor lockout.
+        pulseWait = ((abs(stepSpeed) - 5000) * 60) / maxSpeed;
         }
 
     static void timerISR() { // pulse hardware timer interrupt service routine
@@ -150,7 +148,7 @@ void SensorThread() {
 void CommsThread() {
     while(true) {
         Serial.println("CommsThread");
-        
+
         motorMutex.lock();
         targetSpeed = 0;  // short pause
         motorMutex.unlock();
