@@ -18,10 +18,10 @@ class PulsePairSteppers { // Class for controlling 2 stepper drivers from the sa
     static PulsePairSteppers* isrInstance; // Add static instance pointer
 
     void calculatePulseWait() { // pulseWait prevents runaway acceleration and motor lockout.
-        bool accelerating = (abs(targetSpeed) > abs(stepSpeed));
+        bool accelerating = (abs(targetSpeed) > abs(stepSpeed)) && ((targetSpeed * stepSpeed) > 0);
         pulseWait = accelerating
         ? ((abs(stepSpeed) - 5000) * 60) / maxSpeed   // acceleration profile
-        : ((abs(stepSpeed) - 100) * 500) / maxSpeed;  // deceleration profile
+        : ((abs(stepSpeed) - 5000) * 60) / maxSpeed;  // deceleration profile
         }
 
     static void timerISR() { // pulse hardware timer interrupt service routine
@@ -47,7 +47,7 @@ public:
     PulsePairSteppers(int sp, int dp1, int dp2, int ep1, int ep2, int maxSp = 40000, float hP_Us = 3.0f) : 
         stepPin(sp), dirPin1(dp1), dirPin2(dp2),
         enablePin1(ep1), enablePin2(ep2), highPulseUs(hP_Us),
-        stepSpeed(0), targetSpeed(0), maxSpeed(maxSp), maxDeltaV(10), pulseWait(0), pulseState(false) {
+        stepSpeed(0), targetSpeed(0), maxSpeed(maxSp), maxDeltaV(800), pulseWait(0), pulseState(false) {
         pinMode(stepPin, OUTPUT);
         pinMode(dirPin1, OUTPUT);
         pinMode(dirPin2, OUTPUT);
@@ -153,24 +153,24 @@ void CommsThread() {
         Serial.println("CommsThread");
 
         motorMutex.lock();
-        targetSpeed = 0;  // short pause
+        targetSpeed = 0;      // pause
         motorMutex.unlock();
-        threads.delay(200);
+        threads.delay(1200);
 
         motorMutex.lock();
-        targetSpeed = speed; // forward
+        targetSpeed = speed;  // forward
         motorMutex.unlock();
         threads.delay(4000);
 
         motorMutex.lock();
-        targetSpeed = 0;  // short pause
+        targetSpeed = 0;      // pause
         motorMutex.unlock();
-        threads.delay(2000);
+        threads.delay(1200);
 
         motorMutex.lock();
         targetSpeed = -speed; // reverse
         motorMutex.unlock();
-        threads.delay(2000);
+        threads.delay(4000);
     }
 }
 
