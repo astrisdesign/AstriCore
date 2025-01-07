@@ -21,7 +21,7 @@ class PulsePairSteppers { // Class for controlling 2 stepper drivers from the sa
         bool accelerating = (abs(targetSpeed) > abs(stepSpeed)) && ((targetSpeed * stepSpeed) > 0);
         pulseWait = accelerating
         ? ((abs(stepSpeed) - 5000) * 60) / maxSpeed   // acceleration profile
-        : ((abs(stepSpeed) - 5000) * 60) / maxSpeed;  // deceleration profile
+        : ((abs(stepSpeed) - 50) * 30) / maxSpeed;  // deceleration profile
         }
 
     static void timerISR() { // pulse hardware timer interrupt service routine
@@ -152,25 +152,25 @@ void CommsThread() {
     while(true) {
         Serial.println("CommsThread");
 
-        motorMutex.lock();
-        targetSpeed = 0;      // pause
-        motorMutex.unlock();
-        threads.delay(1200);
+        // motorMutex.lock();
+        // targetSpeed = 0;      // pause
+        // motorMutex.unlock();
+        // threads.delay(1);
 
         motorMutex.lock();
         targetSpeed = speed;  // forward
         motorMutex.unlock();
-        threads.delay(4000);
+        threads.delay(1000);
 
-        motorMutex.lock();
-        targetSpeed = 0;      // pause
-        motorMutex.unlock();
-        threads.delay(1200);
+        // motorMutex.lock();
+        // targetSpeed = 0;      // pause
+        // motorMutex.unlock();
+        // threads.delay(1);
 
         motorMutex.lock();
         targetSpeed = -speed; // reverse
         motorMutex.unlock();
-        threads.delay(4000);
+        threads.delay(2000);
     }
 }
 
