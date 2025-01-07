@@ -7,20 +7,19 @@
 #include <IntervalTimer.h>
 #include <Teensy41_Pinout.h>
 
-// Add the PulsePairSteppers class definition here
-class PulsePairSteppers {
+class PulsePairSteppers { // Class for controlling 2 stepper drivers from the same pulse pin
     private:
     const int stepPin, dirPin1, dirPin2, enablePin1, enablePin2;
     volatile float highPulseUs, lowPulseUs;
-    volatile int dir, stepSpeed, targetSpeed, maxSpeed, maxDeltaV;
+    volatile int dir, stepSpeed, targetSpeed, maxSpeed, maxDeltaV, pulseWait;
     volatile bool pulseState;
     IntervalTimer stepTimer;
 
-    // Add static instance pointer
-    static PulsePairSteppers* isrInstance;
+    static PulsePairSteppers* isrInstance; // Add static instance pointer
 
-    // Modify ISR to be static without arguments
-    static void timerISR() {
+    void calculatePulseWait() {pulseWait =  (abs(stepSpeed) * 200) / maxSpeed; }
+
+    static void timerISR() { // pulse hardware timer interrupt service routine
         if (isrInstance) {
             if (isrInstance->pulseState) {
                 digitalWriteFast(isrInstance->stepPin, LOW);            // End high pulse
@@ -28,8 +27,11 @@ class PulsePairSteppers {
             } else {
                 digitalWriteFast(isrInstance->stepPin, HIGH); // Start high pulse
                 isrInstance->stepTimer.update(isrInstance->highPulseUs);   // Switch to high duration
-                if (isrInstance->stepSpeed != isrInstance->targetSpeed) {
-                    isrInstance->setVelocity(isrInstance->targetSpeed);
+
+                if (isrInstance->stepSpeed != isrInstance->targetSpeed) { // Check if moving at target speed
+                    if (--isrInstance->pulseWait <= 0) { // Check if waited enough pulses, decrement
+                        isrInstance->setVelocity(isrInstance->targetSpeed);
+                    }
                 }
             }
             isrInstance->pulseState = !isrInstance->pulseState;     // Toggle pulse state
@@ -40,7 +42,7 @@ public:
     PulsePairSteppers(int sp, int dp1, int dp2, int ep1, int ep2, int maxSp = 40000, float hP_Us = 3.0f) : 
         stepPin(sp), dirPin1(dp1), dirPin2(dp2),
         enablePin1(ep1), enablePin2(ep2), highPulseUs(hP_Us),
-        stepSpeed(0), targetSpeed(0), maxSpeed(maxSp), maxDeltaV(10), pulseState(false) {
+        stepSpeed(0), targetSpeed(0), maxSpeed(maxSp), maxDeltaV(10), pulseWait(0), pulseState(false) {
         pinMode(stepPin, OUTPUT);
         pinMode(dirPin1, OUTPUT);
         pinMode(dirPin2, OUTPUT);
@@ -67,6 +69,7 @@ public:
         }
         stepSpeed = stepsPerSecond; // new motor velocity setpoint
         dir = getDirection();
+        calculatePulseWait(); // update the acceleration waiting period
 
         noInterrupts(); // prevent interrupts during setpoint and pin level changes
         if(stepsPerSecond != 0) {
@@ -152,7 +155,7 @@ void CommsThread() {
         motorMutex.lock();
         targetSpeed = speed; // forward
         motorMutex.unlock();
-        threads.delay(2000);
+        threads.delay(4000);
 
         motorMutex.lock();
         targetSpeed = 0;  // short pause
