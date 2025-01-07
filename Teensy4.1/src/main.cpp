@@ -17,7 +17,11 @@ class PulsePairSteppers { // Class for controlling 2 stepper drivers from the sa
 
     static PulsePairSteppers* isrInstance; // Add static instance pointer
 
-    void calculatePulseWait() {pulseWait =  ((abs(stepSpeed) - 5000) * 60) / maxSpeed; }
+    void calculatePulseWait() { // pulseWait prevents runaway acceleration.
+        pulseWait =  (stepSpeed < targetSpeed)
+            ? ((abs(stepSpeed) - 5000) * 60) / maxSpeed
+            : ((abs(stepSpeed) - 5000) * 60) / maxSpeed;
+        }
 
     static void timerISR() { // pulse hardware timer interrupt service routine
         if (isrInstance) {
@@ -48,7 +52,7 @@ public:
         pinMode(dirPin2, OUTPUT);
         pinMode(enablePin1, OUTPUT);
         pinMode(enablePin2, OUTPUT);
-        
+
         digitalWriteFast(stepPin, LOW);
         digitalWriteFast(dirPin1, LOW);
         digitalWriteFast(dirPin2, HIGH); // TEMPORARY - reversed dir from Motor 1 for testing setup
@@ -63,9 +67,9 @@ public:
         }
         targetSpeed = stepsPerSecond;
 
-        int changeSpeedLimit = abs(stepSpeed) + maxDeltaV; // Clip speed change within system acceleration limit
-        if (abs(targetSpeed) > changeSpeedLimit) {
-            stepsPerSecond = (stepsPerSecond > 0) ? changeSpeedLimit : -changeSpeedLimit;
+        int deltaV = abs(targetSpeed - stepSpeed); // Clip speed change within system acceleration limit
+        if (deltaV > maxDeltaV) {
+            stepsPerSecond = (targetSpeed > stepSpeed) ? (stepSpeed + maxDeltaV) : (stepSpeed - maxDeltaV);
         }
         stepSpeed = stepsPerSecond; // new motor velocity setpoint
         dir = getDirection();
