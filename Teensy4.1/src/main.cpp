@@ -17,7 +17,7 @@ class PulsePairSteppers { // Class for controlling 2 stepper drivers from the sa
 
     static PulsePairSteppers* isrInstance; // Add static instance pointer
 
-    void calculatePulseWait() {pulseWait =  (abs(stepSpeed) * 200) / maxSpeed; }
+    void calculatePulseWait() {pulseWait =  ((abs(stepSpeed) - 5000) * 60) / maxSpeed; }
 
     static void timerISR() { // pulse hardware timer interrupt service routine
         if (isrInstance) {
