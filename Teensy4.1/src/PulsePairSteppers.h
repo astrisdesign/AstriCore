@@ -11,11 +11,10 @@ private:
     volatile int dir, stepSpeed, targetSpeed, maxSpeed, maxDeltaV, pulseWait;
     volatile bool pulseState;
     IntervalTimer stepTimer;
-    static PulsePairSteppers* isrInstance;
-    
-    void calculatePulseWait();
-    static void timerISR();
-    bool getDirection() const;
+    static PulsePairSteppers* isrInstance; // Static instance pointer for ISR access to member vars
+
+    void calculatePulseWait(); // pulseWait prevents runaway acceleration and motor lockout.
+    static void timerISR(); // pulse hardware timer interrupt service routine
 
 public:
     PulsePairSteppers(int sp, int dp1, int dp2, int ep1, int ep2, 
@@ -23,7 +22,8 @@ public:
     void setVelocity(int stepsPerSecond);
     void enable();
     void disable();
-    int getStepSpeed() const;
+    int getStepSpeed() const; // speed in pulses/s
+    bool getDirection() const; // true for CCW, false for CW
     void setMaxSpeed(int maxSp);
 };
 
