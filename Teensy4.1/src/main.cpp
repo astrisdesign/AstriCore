@@ -1,6 +1,6 @@
 /*
  * Control firmware for Astris UniTest. Hardcoded motor velocity setpoints.
- * First version with PulsePairSteppers moved to include.
+ * Formatting changes after PulsePairSteppers moved to include.
  */
 
 #include <Arduino.h>
@@ -8,9 +8,8 @@
 #include <Teensy41_Pinout.h>
 #include "PulsePairSteppers.h"
 
-// Define PulsePairSteppers motor control object
-volatile float speed = 1000; // TEMPORARY - init to 0 when done with testing. ------------------------------------ # INITIAL SPEED SETTING #
-volatile float targetSpeed = -speed;
+volatile float speed = 1000; // TEMPORARY - delete when done with testing. ------------------------------------ # INITIAL SPEED SETTING #
+volatile float targetSpeed = -speed; // TEMPORARY - delete when done with testing.
 Threads::Mutex motorMutex;
 PulsePairSteppers steppers(pin33, pin34, pin31, pin35, pin32);
 
@@ -41,7 +40,7 @@ void SensorThread() {
     }
 }
 
-void CommsThread() {
+void CommsThread() { // TEMPORARY CONTENTS - will become the USB serial comm thread.
     while(true) {
         Serial.println("CommsThread");
 
@@ -102,8 +101,7 @@ void CommsThread() {
 void setup() {
     Serial.begin(115200);
     
-    // Simplify pin setup - only LED needed as class handles other pins
-    pinMode(LED_BUILTIN, OUTPUT);
+    pinMode(LED_BUILTIN, OUTPUT); // Enable Builtin LED flash
     
     delay(200); // Short delay for DM860T startup
 

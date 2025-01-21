@@ -3,22 +3,22 @@
 PulsePairSteppers* PulsePairSteppers::isrInstance = nullptr;
 
 void PulsePairSteppers::calculatePulseWait() { // pulseWait prevents runaway acceleration and motor lockout.
-    bool accelerating = (abs(targetSpeed) > abs(stepSpeed)) && ((targetSpeed * stepSpeed) > 0);
+    bool accelerating = (abs(targetSpeed) > abs(pulseSpeed)) && ((targetSpeed * pulseSpeed) > 0);
     pulseWait = accelerating
-    ? ((abs(stepSpeed) - 1500) * 1000) / maxSpeed   // acceleration profile
-    : ((abs(stepSpeed) - 50) * 30) / maxSpeed;  // deceleration profile
+    ? ((abs(pulseSpeed) - 1500) * 1000) / maxSpeed   // acceleration profile
+    : ((abs(pulseSpeed) - 50) * 30) / maxSpeed;  // deceleration profile
 }
 
 void PulsePairSteppers::timerISR() { // pulse hardware timer interrupt service routine
     if (isrInstance) {
         if (isrInstance->pulseState) {
-            digitalWriteFast(isrInstance->stepPin, LOW);            // End high pulse
-            isrInstance->stepTimer.update(isrInstance->lowPulseUs); // Switch to low duration
+            digitalWriteFast(isrInstance->pulsePin, LOW);            // End high pulse
+            isrInstance->pulseTimer.update(isrInstance->lowPulseUs); // Switch to low duration
         } else {
-            digitalWriteFast(isrInstance->stepPin, HIGH); // Start high pulse
-            isrInstance->stepTimer.update(isrInstance->highPulseUs);   // Switch to high duration
+            digitalWriteFast(isrInstance->pulsePin, HIGH); // Start high pulse
+            isrInstance->pulseTimer.update(isrInstance->highPulseUs);   // Switch to high duration
 
-            if (isrInstance->stepSpeed != isrInstance->targetSpeed) { // Check if moving at target speed
+            if (isrInstance->pulseSpeed != isrInstance->targetSpeed) { // Check if moving at target speed
                 if (--isrInstance->pulseWait <= 0) { // Check if waited enough pulses, decrement
                     isrInstance->setVelocity(isrInstance->targetSpeed);
                 }
@@ -28,17 +28,17 @@ void PulsePairSteppers::timerISR() { // pulse hardware timer interrupt service r
     }
 }
 
-PulsePairSteppers::PulsePairSteppers(int sp, int dp1, int dp2, int ep1, int ep2, int maxSp = 35000, float hP_Us = 3.0f) : 
-    stepPin(sp), dirPin1(dp1), dirPin2(dp2),
+PulsePairSteppers::PulsePairSteppers(int sp, int dp1, int dp2, int ep1, int ep2, int maxSp, float hP_Us) :
+    pulsePin(sp), dirPin1(dp1), dirPin2(dp2),
     enablePin1(ep1), enablePin2(ep2), highPulseUs(hP_Us),
-    stepSpeed(0), targetSpeed(0), maxSpeed(maxSp), maxDeltaV(800), pulseWait(0), pulseState(false) {
-    pinMode(stepPin, OUTPUT);
+    pulseSpeed(0), targetSpeed(0), maxSpeed(maxSp), maxDeltaV(800), pulseWait(0), pulseState(false) {
+    pinMode(pulsePin, OUTPUT);
     pinMode(dirPin1, OUTPUT);
     pinMode(dirPin2, OUTPUT);
     pinMode(enablePin1, OUTPUT);
     pinMode(enablePin2, OUTPUT);
 
-    digitalWriteFast(stepPin, LOW);
+    digitalWriteFast(pulsePin, LOW);
     digitalWriteFast(dirPin1, LOW);
     digitalWriteFast(dirPin2, HIGH); // TEMPORARY - reversed dir from Motor 1 for testing setup
     digitalWriteFast(enablePin1, HIGH); // Start disabled
@@ -46,32 +46,32 @@ PulsePairSteppers::PulsePairSteppers(int sp, int dp1, int dp2, int ep1, int ep2,
     isrInstance = this;  // Set instance pointer
 }
 
-void PulsePairSteppers::setVelocity(int stepsPerSecond) {
-    if (abs(stepsPerSecond) > maxSpeed) { // Clip new speed setpoint within system speed limit
-        stepsPerSecond = (stepsPerSecond > 0) ? maxSpeed : -maxSpeed;
+void PulsePairSteppers::setVelocity(int pulsesPerSecond) {
+    if (abs(pulsesPerSecond) > maxSpeed) { // Clip new speed setpoint within system speed limit
+        pulsesPerSecond = (pulsesPerSecond > 0) ? maxSpeed : -maxSpeed;
     }
-    targetSpeed = stepsPerSecond;
+    targetSpeed = pulsesPerSecond;
 
-    int deltaV = abs(targetSpeed - stepSpeed); // Clip speed change within system acceleration limit
+    int deltaV = abs(targetSpeed - pulseSpeed); // Clip speed change within system acceleration limit
     if (deltaV > maxDeltaV) {
-        stepsPerSecond = (targetSpeed > stepSpeed) ? (stepSpeed + maxDeltaV) : (stepSpeed - maxDeltaV);
+        pulsesPerSecond = (targetSpeed > pulseSpeed) ? (pulseSpeed + maxDeltaV) : (pulseSpeed - maxDeltaV);
     }
-    stepSpeed = stepsPerSecond; // new motor velocity setpoint
+    pulseSpeed = pulsesPerSecond; // new motor velocity setpoint
     dir = getDirection();
     calculatePulseWait(); // update the acceleration waiting period
 
     noInterrupts(); // prevent interrupts during setpoint and pin level changes
-    if(stepsPerSecond != 0) {
+    if(pulsesPerSecond != 0) {
         digitalWriteFast(dirPin1, dir);  // Motor 1 direction
         digitalWriteFast(dirPin2, !dir); // Motor 2 direction. TEMPORARY reverse for test setup
-        float totalPeriod = 1000000.0f / abs(stepsPerSecond);
+        float totalPeriod = 1000000.0f / abs(pulsesPerSecond);
         lowPulseUs = totalPeriod - highPulseUs; // highPulseUs defined in construction
 
-        digitalWriteFast(stepPin, HIGH);  // Ensure stepPin starts HIGH
+        digitalWriteFast(pulsePin, HIGH);  // Ensure pulsePin starts HIGH
         pulseState = true;                // Set pulseState to match HIGH
-        stepTimer.begin(timerISR, highPulseUs); // run high pulse cycle timer
+        pulseTimer.begin(timerISR, highPulseUs); // run high pulse cycle timer
     } else {
-        stepTimer.end();
+        pulseTimer.end();
     }
     interrupts();
 }
@@ -91,6 +91,6 @@ void PulsePairSteppers::disable() {
 }
 
 // Getters and setters
-int PulsePairSteppers::getStepSpeed() const { return stepSpeed; }
-bool PulsePairSteppers::getDirection() const { return (stepSpeed > 0); } // true for CCW, false for CW
+int PulsePairSteppers::getpulseSpeed() const { return pulseSpeed; }
+bool PulsePairSteppers::getDirection() const { return (pulseSpeed > 0); } // true for CCW, false for CW
 void PulsePairSteppers::setMaxSpeed(int maxSp) { maxSpeed = abs(maxSp); } // Ensure it's non-negative
