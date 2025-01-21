@@ -1,17 +1,26 @@
 /*
  * Control firmware for Astris UniTest. Hardcoded motor velocity setpoints.
- * Formatting changes after PulsePairSteppers moved to include.
+ * First draft of load cell reading.
  */
 
+#include <HX711.h>
 #include <Arduino.h>
 #include <TeensyThreads.h>
 #include <Teensy41_Pinout.h>
 #include "PulsePairSteppers.h"
 
+//    #---------- Motor Driver Setup ----------#
 volatile float speed = 1000; // TEMPORARY - delete when done with testing. ------------------------------------ # INITIAL SPEED SETTING #
 volatile float targetSpeed = -speed; // TEMPORARY - delete when done with testing.
 Threads::Mutex motorMutex;
 PulsePairSteppers steppers(pin33, pin34, pin31, pin35, pin32);
+
+//    #---------- Load Cell Setup ------------#
+const int LC1_SCK_PIN = 0;
+const int LC1_DAT_PIN = 1;
+HX711 loadCell1;
+volatile int32_t loadReading1 = 0;
+Threads::Mutex loadMutex;
 
 void ControlThread() {
     int lastSpeed = 0;    // Cache for the last set speed
@@ -34,9 +43,18 @@ void ControlThread() {
 }
 
 void SensorThread() {
+
+    loadCell1.set_scale(1000.f);
+    loadCell1.tare();
+
     while(true) {
-        Serial.println("SensorThread");
-        threads.delay(499);
+        int32_t loadValue1 = loadCell1.read();
+        {
+            Threads::Scope lock(loadMutex);
+            loadReading1 = loadValue1;
+        }
+        Serial.println(loadReading1);
+        threads.delay(142);
     }
 }
 
@@ -102,9 +120,10 @@ void setup() {
     Serial.begin(115200);
     
     pinMode(LED_BUILTIN, OUTPUT); // Enable Builtin LED flash
-    
-    delay(200); // Short delay for DM860T startup
 
+    loadCell1.begin(LC1_DAT_PIN, LC1_SCK_PIN); // load cell object  
+
+    delay(200); // Short delay for DM860T startup
     steppers.enable(); // DM860T pins low (enable motors)
     
     threads.addThread(ControlThread);
