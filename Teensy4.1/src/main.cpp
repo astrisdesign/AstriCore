@@ -1,6 +1,6 @@
 /*
  * Teensy4.1 motor driver control and load cell reading.
- * Sample load cell frequently.
+ * Sample load cell frequently and serial print. Link motor to load cell for fun.
  */
 
 #include <Arduino.h>
@@ -26,8 +26,6 @@ void ControlThread() {
     int lastSpeed = 0;    // Cache for the last set speed
     int currentSpeed = 0; // Cache current target speed
     while(true) {
-        digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN)); // TEMPORARY LED blinks for testing
-
         {
         Threads::Scope lock(motorMutex); // motorMutex prevents race accessing targetSpeed
         currentSpeed = targetSpeed;
@@ -44,10 +42,11 @@ void ControlThread() {
 
 void SensorThread() {
 
-    loadCell1.set_scale(1000.f);
+    loadCell1.set_scale(1.0f);
     loadCell1.tare();
 
     while(true) {
+        digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN)); // TEMPORARY LED blinks for testing
         {
             Threads::Scope lock(loadMutex);
             loadReading1 = loadCell1.read();
@@ -61,8 +60,14 @@ void CommsThread() { // TEMPORARY CONTENTS - will become the USB serial comm thr
         {
             Threads::Scope lock(loadMutex);
             Serial.println(loadReading1); // serial print
+            if (abs(loadReading1) > 1000) {
+                targetSpeed = loadReading1 / 10; // set motor speed to match load cell reading
+            } else {
+                targetSpeed = 0;
+            }
+
         }
-        threads.delay(100);
+        threads.delay(10);
     }
 }
 
