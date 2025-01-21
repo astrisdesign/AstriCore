@@ -4,6 +4,7 @@
 
 #include <Arduino.h>
 #include <TeensyThreads.h>
+#include <HX711.h>
 #include <Teensy41_Pinout.h>
 #include "PulsePairSteppers.h"
 
@@ -133,7 +134,5 @@ void setup() {
 }
 
 void loop() {
-    Serial.print("CommsThread");
-    digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-    delay(400);
+    threads.yield();
 }
