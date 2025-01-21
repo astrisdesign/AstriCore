@@ -1,5 +1,6 @@
 /*
- * Load cell reading tests.
+ * Teensy4.1 motor driver control and load cell reading.
+ * Sample load cell frequently.
  */
 
 #include <Arduino.h>
@@ -47,10 +48,9 @@ void SensorThread() {
     loadCell1.tare();
 
     while(true) {
-        int32_t loadValue1 = loadCell1.read();
         {
             Threads::Scope lock(loadMutex);
-            loadReading1 = loadValue1;
+            loadReading1 = loadCell1.read();
         }
         threads.delay(142);
     }
@@ -58,63 +58,11 @@ void SensorThread() {
 
 void CommsThread() { // TEMPORARY CONTENTS - will become the USB serial comm thread.
     while(true) {
-        Serial.print("CommsThread");
         {
             Threads::Scope lock(loadMutex);
             Serial.println(loadReading1); // serial print
         }
-
-        for (int i = 0; i < 2; i++) {
-        motorMutex.lock();
-        targetSpeed = -speed;  // reverse A
-        motorMutex.unlock();
-        threads.delay(300);
-
-        motorMutex.lock();
-        targetSpeed = 0;      // pause B
-        motorMutex.unlock();
-        threads.delay(400);
-
-        motorMutex.lock();
-        targetSpeed = speed; // fwd C
-        motorMutex.unlock();
-        threads.delay(300);
-
-        motorMutex.lock();
-        targetSpeed = 0;      // pause D
-        motorMutex.unlock();
-        threads.delay(400);
-        }
-
-        for (int i = 0; i < 1; i++) {
-            motorMutex.lock();
-            targetSpeed = 70 * speed;  // forward E
-            motorMutex.unlock();
-            threads.delay(2000);
-
-        for (int i = 0; i < 6; i++) {
-            motorMutex.lock();
-            targetSpeed = 100 * speed;  // forward F
-            motorMutex.unlock();
-            threads.delay(262);
-
-            motorMutex.lock();
-            targetSpeed = -100 * speed;      // reverse G
-            motorMutex.unlock();
-            threads.delay(238);
-        }
-        }
-
-        motorMutex.lock();
-        targetSpeed = -100 * speed; // reverse H
-        motorMutex.unlock();
-        threads.delay(2000);
-
-        motorMutex.lock();
-        targetSpeed = 0;      // pause I
-        motorMutex.unlock();
-        threads.delay(2000);
-
+        threads.delay(100);
     }
 }
 
