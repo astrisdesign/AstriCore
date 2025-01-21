@@ -53,14 +53,17 @@ void SensorThread() {
             Threads::Scope lock(loadMutex);
             loadReading1 = loadValue1;
         }
-        Serial.println(loadReading1);
         threads.delay(142);
     }
 }
 
 void CommsThread() { // TEMPORARY CONTENTS - will become the USB serial comm thread.
     while(true) {
-        Serial.println("CommsThread");
+        Serial.print("CommsThread");
+        {
+            Threads::Scope lock(loadMutex);
+            Serial.println(loadReading1); // serial print
+        }
 
         for (int i = 0; i < 2; i++) {
         motorMutex.lock();
@@ -118,12 +121,12 @@ void CommsThread() { // TEMPORARY CONTENTS - will become the USB serial comm thr
 
 void setup() {
     Serial.begin(115200);
+    delay(200); // Short delay for DM860T startup and serial init
     
     pinMode(LED_BUILTIN, OUTPUT); // Enable Builtin LED flash
 
     loadCell1.begin(LC1_DAT_PIN, LC1_SCK_PIN); // load cell object  
 
-    delay(200); // Short delay for DM860T startup
     steppers.enable(); // DM860T pins low (enable motors)
     
     threads.addThread(ControlThread);
