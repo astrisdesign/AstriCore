@@ -1,5 +1,5 @@
 /*
- * Serial port troubleshooting
+ * Load cell reading tests.
  */
 
 #include <Arduino.h>
