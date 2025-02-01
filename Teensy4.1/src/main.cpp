@@ -60,8 +60,8 @@ void CommsThread() { // TEMPORARY CONTENTS - will become the USB serial comm thr
         {
             Threads::Scope lock(loadMutex);
             Serial.println(loadReading1); // serial print
-            if (abs(loadReading1) > 1000) {
-                targetSpeed = loadReading1 / 10; // set motor speed to match load cell reading
+            if (abs(loadReading1) > 6000) {
+                targetSpeed = loadReading1 / 60; // set motor speed to match load cell reading
             } else {
                 targetSpeed = 0;
             }
