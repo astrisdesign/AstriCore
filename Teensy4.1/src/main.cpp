@@ -51,7 +51,7 @@ void SensorThread() {
             Threads::Scope lock(loadMutex);
             loadReading1 = loadCell1.read();
         }
-        threads.delay(142);
+        threads.delay(100);
     }
 }
 
@@ -61,7 +61,7 @@ void CommsThread() { // TEMPORARY CONTENTS - will become the USB serial comm thr
             Threads::Scope lock(loadMutex);
             Serial.println(loadReading1); // serial print
             if (abs(loadReading1) > 6000) {
-                targetSpeed = loadReading1 / 60; // set motor speed to match load cell reading
+                targetSpeed = loadReading1 / 90; // set motor speed to match load cell reading
             } else {
                 targetSpeed = 0;
             }
