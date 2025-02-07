@@ -13,8 +13,7 @@
 #include "PulsePairSteppers.h"
 
 //    #---------- Motor Driver Setup ----------#
-volatile float speed = 1000; // TEMPORARY - delete when done with testing. ------------------------------------ # INITIAL SPEED SETTING #
-volatile float targetSpeed = -speed; // TEMPORARY - delete when done with testing.
+volatile float targetSpeed = 0;
 Threads::Mutex motorMutex;
 PulsePairSteppers steppers(pin33, pin34, pin31, pin35, pin32);
 
