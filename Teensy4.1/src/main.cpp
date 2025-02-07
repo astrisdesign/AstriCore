@@ -28,11 +28,13 @@ Threads::Mutex loadMutex;
 //    #---------- String Encoder Setup --------#
 QuadEncoder stringEnc(1, 2, 3, 0); // Channel 1, A=2, B=3, no pullups
 const int strEncZPin = 4; // Z=4
-std::atomic<bool> strEncZFlag = false;
+volatile int strEncPos = 0; // string encoder position
+std::atomic<bool> strEncZFlag = false; // Encoder Z flag. NOT USED
 int32_t strEncLastPos = 0;
-void zPinInterrupt() { // Index (Z) interrupt handler
+void zPinInterrupt() { // Index (Z) interrupt handler. NOT USED
     strEncZFlag = true;
 }
+Threads::Mutex strEncMutex;
 
 void ControlThread() {
     int lastSpeed = 0;    // Cache for the last set speed
@@ -60,7 +62,11 @@ void SensorThread() {
         digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN)); // TEMPORARY LED blinks for testing
         {
             Threads::Scope lock(loadMutex);
-            loadReading1 = loadCell1.read();
+            loadReading1 = loadCell1.read(); // read load cell
+        }
+        {
+            Threads::Scope lock(strEncMutex);
+            strEncPos = stringEnc.read(); // read encoder
         }
         threads.delay(100);
     }
@@ -68,13 +74,12 @@ void SensorThread() {
 
 void CommsThread() { // TEMPORARY CONTENTS - will become the USB serial comm thread.
     while(true) {
-        int32_t posStrEnc = stringEnc.read(); // read encoder
-        if(strEncZFlag) { // Handle index pulse
-            stringEnc.write(0);  // Reset position on Z pulse
-            strEncZFlag = false;
-        Serial.println("Index pulse detected - Position reset");
+
+        {
+            Threads::Scope lock(strEncMutex);
+            Serial.println(strEncPos); // serial print encoder position
         }
-        Serial.println(posStrEnc); // serial print encoder position
+
         {
             Threads::Scope lock(loadMutex);
             if (abs(loadReading1) > 6000) {
@@ -82,7 +87,6 @@ void CommsThread() { // TEMPORARY CONTENTS - will become the USB serial comm thr
             } else {
                 targetSpeed = 0;
             }
-
         }
         threads.delay(10);
     }
@@ -100,8 +104,8 @@ void setup() {
 
     stringEnc.setInitConfig(); // Initialize hardware encoder
     stringEnc.init();
-    pinMode(strEncZPin, INPUT_PULLUP); // specifies Z pin for ABZ quad
-    attachInterrupt(digitalPinToInterrupt(strEncZPin), zPinInterrupt, FALLING);
+    pinMode(strEncZPin, INPUT_PULLUP); // specifies Z pin for ABZ quad. NOT USED
+    // attachInterrupt(digitalPinToInterrupt(strEncZPin), zPinInterrupt, FALLING); Interrupts on encoder Z pulse. NOT USED
 
     threads.addThread(ControlThread);
     threads.addThread(SensorThread);
