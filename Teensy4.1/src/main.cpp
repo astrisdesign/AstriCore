@@ -27,13 +27,7 @@ Threads::Mutex loadMutex;
 
 //    #---------- String Encoder Setup --------#
 QuadEncoder stringEnc(1, 2, 3, 0); // Channel 1, A=2, B=3, no pullups
-const int strEncZPin = 4; // Z=4
 volatile int strEncPos = 0; // string encoder position
-std::atomic<bool> strEncZFlag = false; // Encoder Z flag. NOT USED
-int32_t strEncLastPos = 0;
-void zPinInterrupt() { // Index (Z) interrupt handler. NOT USED
-    strEncZFlag = true;
-}
 Threads::Mutex strEncMutex;
 
 //    #----------- Comms Vars -----------------#
@@ -147,8 +141,6 @@ void setup() {
 
     stringEnc.setInitConfig(); // Initialize hardware encoder
     stringEnc.init();
-    pinMode(strEncZPin, INPUT_PULLUP); // specifies Z pin for ABZ quad. NOT USED
-    // attachInterrupt(digitalPinToInterrupt(strEncZPin), zPinInterrupt, FALLING); Interrupts on encoder Z pulse. NOT USED
 
     threads.addThread(ControlThread);
     threads.addThread(SensorThread);
