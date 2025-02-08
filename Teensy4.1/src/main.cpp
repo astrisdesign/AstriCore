@@ -11,6 +11,7 @@
 #include "QuadEncoder.h"
 #include <Teensy41_Pinout.h>
 #include "PulsePairSteppers.h"
+#include <ArduinoJson.h>  // Added JSON library
 
 //    #---------- Motor Driver Setup ----------#
 volatile float targetSpeed = 0;
@@ -34,6 +35,10 @@ void zPinInterrupt() { // Index (Z) interrupt handler. NOT USED
     strEncZFlag = true;
 }
 Threads::Mutex strEncMutex;
+
+//    #----------- Comms Vars -----------------#
+const char* msg = "teyest"; // USB serial message
+Threads::Mutex commsMutex;
 
 void ControlThread() {
     int lastSpeed = 0;    // Cache for the last set speed
@@ -71,20 +76,59 @@ void SensorThread() {
     }
 }
 
-void CommsThread() { // TEMPORARY CONTENTS - will become the USB serial comm thread.
+void CommsThread() { // USB serial comm thread. COMPLETELY REWORKED
+    // Reserve enough capacity for our JSON structure. Adjust as needed.
+    JsonDocument doc;
+
     while(true) {
+        int lc1_val, se1_val, mstep_val = 0;
+        int vel;
 
-        {
-            Threads::Scope lock(strEncMutex);
-            Serial.println(strEncPos); // serial print encoder position
-        }
-
+        // Get sensor data snapshots with proper locking
         {
             Threads::Scope lock(loadMutex);
-            if (abs(loadReading1) > 6000) {
-                targetSpeed = loadReading1 / 90; // set motor speed to match load cell reading
-            } else {
-                targetSpeed = 0;
+            lc1_val = loadReading1;
+        }
+        {
+            Threads::Scope lock(strEncMutex);
+            se1_val = strEncPos;
+        }
+        {
+            Threads::Scope lock(motorMutex);
+            vel = targetSpeed;
+        }
+
+        // Build JSON structure
+        doc.clear();
+        JsonObject data = doc["data"].to<JsonObject>();
+        data["lc1"] = lc1_val;
+        data["se1"] = se1_val;
+        data["mstep"] = mstep_val;
+        
+        JsonObject setpoints = doc["setpoints"].to<JsonObject>();
+        setpoints["vel"] = vel;
+
+        {
+            Threads::Scope lock(commsMutex);
+            doc["msg"] = msg; // update output text
+        }
+
+        // Serialize and transmit
+        serializeJson(doc, Serial);
+        Serial.println();
+
+        // Handle incoming commands
+        if (Serial.available() > 0) {
+            String incoming = Serial.readStringUntil('\n');
+            JsonDocument cmdDoc;
+            DeserializationError error = deserializeJson(cmdDoc, incoming);
+            if (!error && cmdDoc["setpoints"].is<JsonObject>() && cmdDoc["msg"].is<const char*>()) {
+                JsonObject setPoints = cmdDoc["setpoints"];
+                msg = cmdDoc["msg"];
+                if (setPoints["vel"].is<int>()) {
+                    Threads::Scope lock(motorMutex);
+                    targetSpeed = setPoints["vel"];
+                }
             }
         }
         threads.delay(10);
