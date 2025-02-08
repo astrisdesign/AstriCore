@@ -1,7 +1,7 @@
 /*
  * Teensy4.1 motor driver control, load cell reading, and string encoder reading.
  * Encoder prints to serial.
- * Load cell sets motor speed.
+ * USB serial comms development.
  */
 
 #include <Arduino.h>
@@ -53,9 +53,6 @@ void ControlThread() {
 }
 
 void SensorThread() {
-    loadCell1.set_scale(1.0f);
-    loadCell1.tare();
-
     while(true) {
         digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN)); // TEMPORARY LED blinks for testing
         {
@@ -131,11 +128,10 @@ void CommsThread() { // USB serial comm thread. COMPLETELY REWORKED
 
 void setup() {
     Serial.begin(115200);
-    delay(200); // Short delay for DM860T startup and serial init
-    
+    loadCell1.begin(LC1_DAT_PIN, LC1_SCK_PIN); // init load cell object
     pinMode(LED_BUILTIN, OUTPUT); // Enable Builtin LED flash
-
-    loadCell1.begin(LC1_DAT_PIN, LC1_SCK_PIN); // load cell object  
+    
+    delay(210); // Short delay for various things
 
     steppers.enable(); // DM860T pins low (enable motors)
 
