@@ -31,7 +31,7 @@ volatile int strEncPos = 0; // string encoder position
 Threads::Mutex strEncMutex;
 
 //    #----------- Comms Vars -----------------#
-const char* msg = "teyest"; // USB serial message
+const char* msg = ""; // USB serial message
 Threads::Mutex commsMutex;
 
 void ControlThread() {
@@ -54,7 +54,6 @@ void ControlThread() {
 
 void SensorThread() {
     while(true) {
-        digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN)); // TEMPORARY LED blinks for testing
         {
             Threads::Scope lock(loadMutex);
             loadReading1 = loadCell1.read(); // read load cell
@@ -67,62 +66,76 @@ void SensorThread() {
     }
 }
 
-void CommsThread() { // USB serial comm thread. COMPLETELY REWORKED
-    // Reserve enough capacity for our JSON structure. Adjust as needed.
+void CommsThread() { // USB serial comm thread.
     JsonDocument doc;
+    int lc1_val, se1_val, mstep_val, listenCount = 0;
+    int vel;
 
     while(true) {
-        int lc1_val, se1_val, mstep_val = 0;
-        int vel;
-
-        // Get sensor data snapshots with proper locking
-        {
-            Threads::Scope lock(loadMutex);
-            lc1_val = loadReading1;
-        }
-        {
-            Threads::Scope lock(strEncMutex);
-            se1_val = strEncPos;
-        }
-        {
-            Threads::Scope lock(motorMutex);
-            vel = targetSpeed;
-        }
-
-        // Build JSON structure
-        doc.clear();
-        JsonObject data = doc["data"].to<JsonObject>();
-        data["lc1"] = lc1_val;
-        data["se1"] = se1_val;
-        data["mstep"] = mstep_val;
-        
-        JsonObject setpoints = doc["setpoints"].to<JsonObject>();
-        setpoints["vel"] = vel;
-
-        {
-            Threads::Scope lock(commsMutex);
-            doc["msg"] = msg; // update output text
-        }
-
-        // Serialize and transmit
-        serializeJson(doc, Serial);
-        Serial.println();
-
-        // Handle incoming commands
-        if (Serial.available() > 0) {
+        digitalWriteFast(LED_BUILTIN, !digitalReadFast(LED_BUILTIN)); // TEMPORARY LED blinks for testing
+        if (Serial.available() > 0) { // Handle incoming serial data
             String incoming = Serial.readStringUntil('\n');
             JsonDocument cmdDoc;
             DeserializationError error = deserializeJson(cmdDoc, incoming);
-            if (!error && cmdDoc["setpoints"].is<JsonObject>() && cmdDoc["msg"].is<const char*>()) {
-                JsonObject setPoints = cmdDoc["setpoints"];
-                msg = cmdDoc["msg"];
-                if (setPoints["vel"].is<int>()) {
-                    Threads::Scope lock(motorMutex);
-                    targetSpeed = setPoints["vel"];
+            if (!error) {
+                if (cmdDoc["setpoints"].is<JsonObject>()) {
+                    JsonObject setPoints = cmdDoc["setpoints"];
+                    if (setPoints["vel"].is<int>()) {
+                        Threads::Scope lock(motorMutex);
+                        targetSpeed = setPoints["vel"];
+                    }
                 }
+                if (cmdDoc["msg"].is<const char*>()) {
+                        Threads::Scope lock(commsMutex);
+                        msg = cmdDoc["msg"];
+                    } else {
+                        Threads::Scope lock(commsMutex);
+                        msg = ""; // If there's no message, msg is cleared.
+                    }
+            } else {
+                Threads::Scope lock(commsMutex);
+                msg = "Last input caused a serial decode error";
             }
         }
-        threads.delay(10);
+        listenCount++; // Listens for serial messages more often than sending them.
+
+        if (listenCount >= 9) { // Send out a JSON message
+            // Get sensor data snapshots with proper locking
+            {
+                Threads::Scope lock(loadMutex);
+                lc1_val = loadReading1;
+            }
+            {
+                Threads::Scope lock(strEncMutex);
+                se1_val = strEncPos;
+            }
+            {
+                Threads::Scope lock(motorMutex);
+                vel = targetSpeed;
+            }
+
+            // Build JSON structure
+            doc.clear();
+            JsonObject data = doc["data"].to<JsonObject>();
+            data["lc1"] = lc1_val;
+            data["se1"] = se1_val;
+            data["mstep"] = mstep_val;
+            
+            JsonObject setpoints = doc["setpoints"].to<JsonObject>();
+            setpoints["vel"] = vel;
+
+            {
+                Threads::Scope lock(commsMutex);
+                doc["msg"] = msg; // update output text
+            }
+
+            // Serialize and transmit
+            serializeJson(doc, Serial);
+            Serial.println();
+            listenCount = 0; // Reset counter
+        }
+
+        threads.delay(5); // very tight loop for responsiveness
     }
 }
 
