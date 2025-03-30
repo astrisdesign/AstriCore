@@ -120,7 +120,7 @@ void CommsThread() { // USB serial comm thread.
             data["lc1"] = lc1_val;
             data["se1"] = se1_val;
             data["mstep"] = mstep_val;
-            
+
             JsonObject setpoints = doc["setpoints"].to<JsonObject>();
             setpoints["vel"] = vel;
 
