@@ -1,7 +1,7 @@
 /*
  * Teensy4.1 motor driver control, load cell reading, and string encoder reading.
  * Encoder prints to serial.
- * Load cell sets motor speed.
+ * USB serial comms development.
  */
 
 #include <Arduino.h>
@@ -11,6 +11,7 @@
 #include "QuadEncoder.h"
 #include <Teensy41_Pinout.h>
 #include "PulsePairSteppers.h"
+#include <ArduinoJson.h>  // Added JSON library
 
 //    #---------- Motor Driver Setup ----------#
 volatile float targetSpeed = 0;
@@ -26,14 +27,12 @@ Threads::Mutex loadMutex;
 
 //    #---------- String Encoder Setup --------#
 QuadEncoder stringEnc(1, 2, 3, 0); // Channel 1, A=2, B=3, no pullups
-const int strEncZPin = 4; // Z=4
 volatile int strEncPos = 0; // string encoder position
-std::atomic<bool> strEncZFlag = false; // Encoder Z flag. NOT USED
-int32_t strEncLastPos = 0;
-void zPinInterrupt() { // Index (Z) interrupt handler. NOT USED
-    strEncZFlag = true;
-}
 Threads::Mutex strEncMutex;
+
+//    #----------- Comms Vars -----------------#
+const char* msg = ""; // USB serial message
+Threads::Mutex commsMutex;
 
 void ControlThread() {
     int lastSpeed = 0;    // Cache for the last set speed
@@ -54,11 +53,7 @@ void ControlThread() {
 }
 
 void SensorThread() {
-    loadCell1.set_scale(1.0f);
-    loadCell1.tare();
-
     while(true) {
-        digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN)); // TEMPORARY LED blinks for testing
         {
             Threads::Scope lock(loadMutex);
             loadReading1 = loadCell1.read(); // read load cell
@@ -71,40 +66,90 @@ void SensorThread() {
     }
 }
 
-void CommsThread() { // TEMPORARY CONTENTS - will become the USB serial comm thread.
+void CommsThread() { // USB serial comm thread.
+    JsonDocument doc;
+    int lc1_val, se1_val, mstep_val, listenCount = 0;
+    int vel;
+
     while(true) {
-
-        {
-            Threads::Scope lock(strEncMutex);
-            Serial.println(strEncPos); // serial print encoder position
-        }
-
-        {
-            Threads::Scope lock(loadMutex);
-            if (abs(loadReading1) > 6000) {
-                targetSpeed = loadReading1 / 90; // set motor speed to match load cell reading
+        digitalWriteFast(LED_BUILTIN, !digitalReadFast(LED_BUILTIN)); // TEMPORARY LED blinks for testing
+        if (Serial.available() > 0) { // Handle incoming serial data
+            String incoming = Serial.readStringUntil('\n');
+            JsonDocument cmdDoc;
+            DeserializationError error = deserializeJson(cmdDoc, incoming);
+            if (!error) {
+                if (cmdDoc["setpoints"].is<JsonObject>()) {
+                    JsonObject setPoints = cmdDoc["setpoints"];
+                    if (setPoints["vel"].is<int>()) {
+                        Threads::Scope lock(motorMutex);
+                        targetSpeed = setPoints["vel"];
+                    }
+                }
+                if (cmdDoc["msg"].is<const char*>()) {
+                        Threads::Scope lock(commsMutex);
+                        msg = cmdDoc["msg"];
+                    } else {
+                        Threads::Scope lock(commsMutex);
+                        msg = ""; // If there's no message, msg is cleared.
+                    }
             } else {
-                targetSpeed = 0;
+                Threads::Scope lock(commsMutex);
+                msg = "Last input caused a serial decode error";
             }
         }
-        threads.delay(10);
+        listenCount++; // Listens for serial messages more often than sending them.
+
+        if (listenCount >= 9) { // Send out a JSON message
+            // Get sensor data snapshots with proper locking
+            {
+                Threads::Scope lock(loadMutex);
+                lc1_val = loadReading1;
+            }
+            {
+                Threads::Scope lock(strEncMutex);
+                se1_val = strEncPos;
+            }
+            {
+                Threads::Scope lock(motorMutex);
+                vel = targetSpeed;
+            }
+
+            // Build JSON structure
+            doc.clear();
+            JsonObject data = doc["data"].to<JsonObject>();
+            data["lc1"] = lc1_val;
+            data["se1"] = se1_val;
+            data["mstep"] = mstep_val;
+
+            JsonObject setpoints = doc["setpoints"].to<JsonObject>();
+            setpoints["vel"] = vel;
+
+            {
+                Threads::Scope lock(commsMutex);
+                doc["msg"] = msg; // update output text
+            }
+
+            // Serialize and transmit
+            serializeJson(doc, Serial);
+            Serial.println();
+            listenCount = 0; // Reset counter
+        }
+
+        threads.delay(5); // very tight loop for responsiveness
     }
 }
 
 void setup() {
     Serial.begin(115200);
-    delay(200); // Short delay for DM860T startup and serial init
-    
+    loadCell1.begin(LC1_DAT_PIN, LC1_SCK_PIN); // init load cell object
     pinMode(LED_BUILTIN, OUTPUT); // Enable Builtin LED flash
-
-    loadCell1.begin(LC1_DAT_PIN, LC1_SCK_PIN); // load cell object  
+    
+    delay(210); // Short delay for various things
 
     steppers.enable(); // DM860T pins low (enable motors)
 
     stringEnc.setInitConfig(); // Initialize hardware encoder
     stringEnc.init();
-    pinMode(strEncZPin, INPUT_PULLUP); // specifies Z pin for ABZ quad. NOT USED
-    // attachInterrupt(digitalPinToInterrupt(strEncZPin), zPinInterrupt, FALLING); Interrupts on encoder Z pulse. NOT USED
 
     threads.addThread(ControlThread);
     threads.addThread(SensorThread);
