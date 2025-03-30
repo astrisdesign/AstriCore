@@ -40,7 +40,7 @@ PulsePairSteppers::PulsePairSteppers(int sp, int dp1, int dp2, int ep1, int ep2,
 
     digitalWriteFast(pulsePin, LOW);
     digitalWriteFast(dirPin1, LOW);
-    digitalWriteFast(dirPin2, HIGH); // TEMPORARY - reversed dir from Motor 1 for testing setup
+    digitalWriteFast(dirPin2, LOW);
     digitalWriteFast(enablePin1, HIGH); // Start disabled
     digitalWriteFast(enablePin2, HIGH); // Start disabled
     isrInstance = this;  // Set instance pointer
