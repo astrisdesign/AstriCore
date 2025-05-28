@@ -1,4 +1,4 @@
-# Astris UniTest - Uniaxial Tension + Compression Testing
+# AstriForce - Uniaxial Tension + Compression Testing
 ## Empowering small labs and startups with hackable aerospace-grade mechanical test capability.
 
 ## Overview
@@ -30,7 +30,7 @@ This project combines a microcontroller-based system with a Python GUI to contro
   - Data Management: Saves collected data in CSV format and logs operations in plain text.
 
 ## Hardware Setup
-- Code is compatible with the Astris UniTest electrical schematic (TODO - link to schematics)
+- Code is compatible with the AstriForce electrical schematic (TODO - link to schematics)
 
 ## Software Setup
 ### Microcontroller:
@@ -75,7 +75,7 @@ You can read the full license text here: [CERN-OHL-S v2](https://ohwr.org/projec
 This project is currently under active development. 
 
 ### Acknowledgements
-Thanks to TJ Parekh for mechanical design support!
+Thanks to TJ Parekh for contributing to early mechanical design!
 
 ### Contact
 For questions, issues, or suggestions, please email clayton@astrisdesign.com or open an issue in the repository.
