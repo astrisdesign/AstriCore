@@ -39,8 +39,8 @@ PulsePairSteppers::PulsePairSteppers(int sp, int dp1, int dp2, int ep1, int ep2,
     pinMode(enablePin2, OUTPUT);
 
     digitalWriteFast(pulsePin, LOW);
-    digitalWriteFast(dirPin1, LOW);
-    digitalWriteFast(dirPin2, HIGH); // TEMPORARY - reversed dir from Motor 1 for testing setup
+    digitalWriteFast(dirPin1, HIGH); // Set initial motor direction to CCW
+    digitalWriteFast(dirPin2, HIGH);
     digitalWriteFast(enablePin1, HIGH); // Start disabled
     digitalWriteFast(enablePin2, HIGH); // Start disabled
     isrInstance = this;  // Set instance pointer
@@ -63,7 +63,7 @@ void PulsePairSteppers::setVelocity(int pulsesPerSecond) {
     noInterrupts(); // prevent interrupts during setpoint and pin level changes
     if(pulsesPerSecond != 0) {
         digitalWriteFast(dirPin1, dir);  // Motor 1 direction
-        digitalWriteFast(dirPin2, !dir); // Motor 2 direction. TEMPORARY reverse for test setup
+        digitalWriteFast(dirPin2, dir); // Motor 2 direction
         float totalPeriod = 1000000.0f / abs(pulsesPerSecond);
         lowPulseUs = totalPeriod - highPulseUs; // highPulseUs defined in construction
 
