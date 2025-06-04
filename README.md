@@ -1,81 +1,65 @@
-# Astris UniTest - Uniaxial Tension + Compression Testing
-## Empowering small labs and startups with hackable aerospace-grade mechanical test capability.
+Based on the astricore_extract.txt file, here's an updated README.md for AstriCore:
+
+# AstriCore - Real-Time Hardware Control & Data Acquisition
 
 ## Overview
-This project combines a microcontroller-based system with a Python GUI to control and collect data from a tensile testing machine. It allows for real-time position or load-based control from GUI inputs or Python scripts with simultaneous data acquisition and visualization.
+AstriCore is a multi-threaded firmware platform for Teensy 4.1 microcontrollers, designed for real-time hardware control and sensor data acquisition. It provides a robust foundation for precision mechatronic systems requiring coordinated motor control, load sensing, and position feedback.
 
 ## Features
-- Real-time Control: Adjust motor and heater settings through a user-friendly GUI.
-- Data Acquisition: Collect sensor data (load, displacement) in real-time.
-- Data Logging: Save data continuously in simple, human-readable formats.
-- Graphical Interface: Visualize sensor data with matplotlib, enable core functionality via user interface.
+- **Multi-threaded Architecture**: Concurrent control, sensor, and communication tasks using TeensyThreads
+- **Motor Control**: Pulse-pair stepper motor driving with acceleration profiles and velocity control
+- **Sensor Integration**: Load cell and rotary encoder data acquisition with thread-safe access
+- **JSON Communication**: Structured serial protocol for real-time command and telemetry exchange
+- **Hardware Abstraction**: Clean interfaces for motors, sensors, and communication peripherals
 
-## Project Components
-### Microcontroller Software (Arduino C++ via PlatformIO)
-- Functionality:
-  - Control Task: Manages the hardware interface including motor and heater controls.
-  - Sensor Task: Reads and calculates mean values from thermocouples (TCs).
-  - Serial Port Task: Manages communication between the GUI and microcontroller, parsing JSON inputs and sending sensor data.
-- Hardware: Teensy 4.1
-### GUI Software (Python)
-- Dependencies:
-  - Python 3.x
-  - tkinter for GUI
-  - matplotlib for plotting
-  - pyserial for USB communication
-  - pandas for data handling
-- Functionality:
-  - Serial Communication: Establishes connection over USB, reads and writes data.
-  - User Interface: Provides controls for setting operational parameters, initiating data collection, and viewing real-time plots.
-  - Data Management: Saves collected data in CSV format and logs operations in plain text.
+## Core Capabilities
+### Real-Time Control
+- Stepper motor velocity control with configurable acceleration/deceleration profiles
+- Thread-safe setpoint management and hardware interfacing
+- Microsecond-precision pulse generation with hardware timers
 
-## Hardware Setup
-- Code is compatible with the Astris UniTest electrical schematic (TODO - link to schematics)
+### Data Acquisition
+- Load cell reading via HX711 interface
+- Quadrature encoder position tracking
+- High-frequency sensor sampling with mutex-protected data sharing
 
-## Software Setup
-### Microcontroller:
-1. Install Visual Studio Code (VSCode) if not already installed.
-2. Install PlatformIO Extension:
-   - Open VSCode, go to the Extensions view (Ctrl+Shift+X), search for "PlatformIO IDE", and install it.
-3. Configure PlatformIO:
-   - Create a new project by selecting PlatformIO Home from the PlatformIO menu in VSCode, then choose New Project.
-   - Select Teensy4.1 as the board, Arduino as the framework, and name your project.
-   - Place main.cpp into the src directory of your new project.
-4. Build and Upload:
-   - Use the PlatformIO menu in VSCode, click on Upload to compile and upload main.cpp to your ESP32.
+### Communication
+- USB serial interface with JSON message protocol
+- Bidirectional command and telemetry exchange
+- Real-time status reporting and error handling
 
-### GUI:
-1. Install Python if not already installed.
-2. Install required libraries with pip: pip install tkinter matplotlib pyserial pandas
-3. Run the Python Script: python SimpleDAQ.py
+## Hardware Platform
+- **Target**: Teensy 4.1 microcontroller
+- **Development**: PlatformIO with Arduino framework
+- **Interfaces**: Stepper motor drivers, load cells, rotary encoders
+- **Communication**: USB serial for host integration
 
-### Usage
-1. Start the GUI by running the Python script.
-2. Type in the correct COM port for the microcontroller device
-3. Start data acquisition and control
-4. Exit at any point to save data
+## Project Structure
+```
+AstriCore/
+├── Teensy4.1/           # PlatformIO project
+│   ├── src/             # Source code
+│   │   ├── main.cpp     # Multi-threaded main application
+│   │   └── PulsePairSteppers.*  # Motor control library
+│   └── include/         # Hardware definitions and pinouts
+```
 
-### Contribute
-1. Fork the repository.
-2. Make your changes or additions.
-3. Open a Pull Request with a clear description of what your changes do.
+## Development Setup
+1. Install PlatformIO with Teensy 4.1 support
+2. Clone repository and open Teensy4.1 project folder
+3. Build and upload firmware via PlatformIO
 
-### Software License
-This software is licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at
-[http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0)
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
-**Credit Requirement:** Please retain and include the copyright notice and any NOTICE file content in all copies or derivative works of this software. 
+## Integration
+AstriCore serves as the embedded foundation for higher-level control systems and can be integrated with:
+- Host applications for GUI control and data visualization
+- Automated test sequences and data logging systems
+- Calibration and configuration management tools
 
-### Hardware License
-The hardware designs of this project are licensed under the CERN Open Hardware License Version 2 - Strongly Reciprocal (CERN-OHL-S v2). 
-You can read the full license text here: [CERN-OHL-S v2](https://ohwr.org/project/cernohl/wikis/Documents/CERN-OHL-S_v2).
-**Credit Requirement:** Any derivative work must acknowledge the original source by including a notice that the original design was created by Astris Design.
+## Architecture Philosophy
+The firmware emphasizes real-time responsiveness, thread safety, and clean separation between control logic, sensor management, and communication protocols. This modular approach enables reliable operation in demanding mechatronic applications while maintaining extensibility for future hardware integration.
 
-### Development Status
-This project is currently under active development. 
+## License
+Licensed under Apache License 2.0 for software components. See LICENSE file for details.
 
-### Acknowledgements
-Thanks to TJ Parekh for mechanical design support!
-
-### Contact
-For questions, issues, or suggestions, please email clayton@astrisdesign.com or open an issue in the repository.
+## Contact
+For questions or collaboration, contact clayton@astrisdesign.com
