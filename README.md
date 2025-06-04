@@ -1,6 +1,5 @@
-Based on the astricore_extract.txt file, here's an updated README.md for AstriCore:
-
 # AstriCore - Real-Time Hardware Control & Data Acquisition
+=======
 
 ## Overview
 AstriCore is a multi-threaded firmware platform for Teensy 4.1 microcontrollers, designed for real-time hardware control and sensor data acquisition. It provides a robust foundation for precision mechatronic systems requiring coordinated motor control, load sensing, and position feedback.
