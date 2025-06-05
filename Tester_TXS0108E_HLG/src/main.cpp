@@ -1,4 +1,6 @@
 #include <Arduino.h>
+#include <array>
+#include <algorithm>
 
 // LED pins
 constexpr int LED_PINS[] = {22, 23, 2};  // D22, D23, onboard LED (Note that TX0 and RX0 disable USB serial)
@@ -12,7 +14,28 @@ constexpr int TXSL_A_PINS[] = {13, 12, 14, 27, 26, 25, 33, 32};  // A1-A8 goes t
 // TXSR A-side pins  
 constexpr int TXSR_A_PINS[] = {2, 4, 16, 17, 5, 18, 19, 21};     // A1-A8 goes bottom to top
 
-String test_diagnostic = "";
+// Per-channel test result tracking
+constexpr int NUM_CHANNELS = 8;
+std::array<bool, NUM_CHANNELS> test1_high_pass = {false};
+std::array<bool, NUM_CHANNELS> test1_low_pass  = {false};
+// Add more arrays if you add more tests
+
+String test_results = "Failed Pin Numbers: ";
+String output_message = "{\"msg\":\"";
+
+String make_fail_msg(const std::array<bool, NUM_CHANNELS>& test, const char* label) {
+  String msg = String(label) + ":";
+  bool any_failed = false;
+  for (int i = 0; i < NUM_CHANNELS; ++i) {
+    if (!test[i]) {
+      if (any_failed) msg += ",";
+      msg += String(i+1);
+      any_failed = true;
+    }
+  }
+  if (!any_failed) msg += "None";
+  return msg;
+}
 
 void setup() {
   // begin serial for output
@@ -20,7 +43,7 @@ void setup() {
   delay(100);
 
   // Keep OE pin as INPUT during reset/boot so GPIO2 (the strapping pin)
-  // isn’t forced low. This lets the ESP32 finish its normal boot.
+  // isn't forced low. This lets the ESP32 finish its normal boot.
   pinMode(TXS_OE, INPUT);
   delay(250);  // wait for the ESP32 to exit reset
 
@@ -61,16 +84,12 @@ void setup() {
     pinMode(pin, INPUT_PULLUP); // INPUT_PULLDOWN fights TXSR driving high and can confuse drive direction
   }
 
-  for (uint8_t i = 0; i < 8; i++) {
+  for (uint8_t i = 0; i < NUM_CHANNELS; i++) {
     int outPin = TXSL_A_PINS[i];
     int inPin = TXSR_A_PINS[i];
     digitalWrite(outPin, HIGH);
     delay(10);
-    if (digitalRead(inPin) == HIGH) {
-      test_diagnostic += "A" + String(i + 1) + "+_PASS ";
-    } else {
-      test_diagnostic += "A" + String(i + 1) + "+_FAIL ";
-    }
+    test1_high_pass[i] = (digitalRead(inPin) == HIGH);
     delay(10);
   }
 
@@ -78,38 +97,44 @@ void setup() {
   for (int pin : TXSR_A_PINS) {
     pinMode(pin, INPUT_PULLDOWN); // INPUT_PULLDOWN fights TXSR driving high and can confuse drive direction
   }
-  for (uint8_t i = 0; i < 8; i++) {
+  for (uint8_t i = 0; i < NUM_CHANNELS; i++) {
     int outPin = TXSL_A_PINS[i];
     int inPin = TXSR_A_PINS[i];
     digitalWrite(outPin, LOW);
     delay(10);
-    if (digitalRead(inPin) == LOW) {
-      test_diagnostic += "A" + String(i + 1) + "-_PASS ";
-    } else {
-      test_diagnostic += "A" + String(i + 1) + "-_FAIL ";
-    }
+    test1_low_pass[i] = (digitalRead(inPin) == LOW);
     delay(10);
   }
 
   // Test 2: TBD
 
+  // Aggregate results and set status LEDs
+  bool all_passed = std::all_of(test1_high_pass.begin(), test1_high_pass.end(), [](bool v){ return v; }) &&
+                    std::all_of(test1_low_pass.begin(),  test1_low_pass.end(),  [](bool v){ return v; });
+
+  if (all_passed) {
+    digitalWrite(23, HIGH); // D23 high if all tests pass
+    digitalWrite(22, LOW);
+  } else {
+    digitalWrite(23, LOW);
+    digitalWrite(22, HIGH); // D22 high if any test fails
+  }
+
   pinMode(2, OUTPUT); // Re-enable onboard LED (it's dual-purposed as one of the channel tests)
   digitalWrite(2, LOW); // onboard LED initially off
+
+  test_results += make_fail_msg(test1_high_pass, "T1H") + ", ";
+  test_results += make_fail_msg(test1_low_pass,  "T1L");
+  output_message += test_results;
+  output_message +=  "\"}";
 }
 
 void loop() {
-  String payload = "{\"msg\":\"" + test_diagnostic + "\"}"; // format test_diagnostic into JSON: {"msg":"<payload>"}
-  
-  if (test_diagnostic.endsWith(" ")) { // remove trailing space (if present)
-    test_diagnostic.remove(test_diagnostic.length() - 1);
-  }
-  Serial.println(payload);
+  Serial.println(output_message);
 
-  for (int pin : LED_PINS) {
-    digitalWrite(pin, !digitalRead(pin));
-  }
+  digitalWrite(2, !digitalRead(2)); // Toggle onboard LED
 
-  // Toggle all TXS1 pins
+  // Toggle all TXSL pins for o-scope probing through circuit
   for (int pin : TXSL_A_PINS) {
     pinMode(pin, OUTPUT);
     digitalWrite(pin, !digitalRead(pin));
