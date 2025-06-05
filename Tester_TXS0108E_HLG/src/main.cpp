@@ -106,7 +106,8 @@ void setup() {
     delay(10);
   }
 
-  // Test 2: TBD
+  // -------------- Test 2: Right to Left Steady High and Low ---------------- //
+  // <test contents here>
 
   // Aggregate results and set status LEDs
   bool all_passed = std::all_of(test1_high_pass.begin(), test1_high_pass.end(), [](bool v){ return v; }) &&
