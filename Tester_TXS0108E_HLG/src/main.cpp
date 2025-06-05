@@ -77,9 +77,9 @@ void setup() {
   digitalWrite(TXS_OE, HIGH);
   delay(50);
 
-  // -------------- Test 1: Steady High, Steady Low, 1->2 ---------------- //
+  // -------------- Test 1: Left to Right Steady High and Low ---------------- //
 
-  // Test TXS1-->TXS2 in the 'high' direction
+  // Test TXSL-->TXSR in the 'high' direction
   for (int pin : TXSR_A_PINS) {
     pinMode(pin, INPUT_PULLUP); // INPUT_PULLDOWN fights TXSR driving high and can confuse drive direction
   }
@@ -93,7 +93,7 @@ void setup() {
     delay(10);
   }
 
-  // Test TXS1-->TXS2 in the 'low' direction
+  // Test TXSL-->TXSR in the 'low' direction
   for (int pin : TXSR_A_PINS) {
     pinMode(pin, INPUT_PULLDOWN); // INPUT_PULLDOWN fights TXSR driving high and can confuse drive direction
   }
