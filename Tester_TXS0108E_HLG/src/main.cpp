@@ -212,42 +212,49 @@ void setup() {
 
   //––––––– Begin UART-based subtests: Test 3 (Ch 1&2 + Ch 3&4) ––––––
   String failsT3 = "";
-  {
-
-    // First pair: channel 1 (A1→A1) and channel 2 (A2→A2)
-    failsT3  = run_hardware_serial_tests(
-                TXSL_A_PINS[0], TXSR_A_PINS[0],
-                TXSL_A_PINS[1], TXSR_A_PINS[1]
-             );
-    // Second pair: channel 3 (A3→A3) and channel 4 (A4→A4)
-    failsT3 += ", " + run_hardware_serial_tests(
-                      TXSL_A_PINS[2], TXSR_A_PINS[2],
-                      TXSL_A_PINS[3], TXSR_A_PINS[3]
-                   );
-  }
+  bool test3_pass = false;
+  // First pair: channel 1 (A1→A1) and channel 2 (A2→A2)
+  failsT3  = run_hardware_serial_tests(
+              TXSL_A_PINS[0], TXSR_A_PINS[0],
+              TXSL_A_PINS[1], TXSR_A_PINS[1]
+            );
+  // Second pair: channel 3 (A3→A3) and channel 4 (A4→A4)
+  failsT3 += ", " + run_hardware_serial_tests(
+                    TXSL_A_PINS[2], TXSR_A_PINS[2],
+                    TXSL_A_PINS[3], TXSR_A_PINS[3]
+                  );
+  int splitresultT3 = failsT3.indexOf(","); 
+  String f3a = failsT3.substring(0, splitresultT3);
+  String f3b = failsT3.substring(splitresultT3 + 2);
+  test3_pass = (f3a == "None" && f3b == "None");
 
   //––––––– Begin UART-based subtests: Test 4 (Ch 5&6 + Ch 7&8) ––––––
   String failsT4 = "";
-  {
-    // Third pair: channel 5 (A5→A5) and channel 6 (A6→A6)
-    failsT4  = run_hardware_serial_tests(
-                TXSL_A_PINS[4], TXSR_A_PINS[4],
-                TXSL_A_PINS[5], TXSR_A_PINS[5]
-             );
-    // Fourth pair: channel 7 (A7→A7) and channel 8 (A8→A8)
-    failsT4 += ", " + run_hardware_serial_tests(
-                      TXSL_A_PINS[6], TXSR_A_PINS[6],
-                      TXSL_A_PINS[7], TXSR_A_PINS[7]
-                   );
+  bool test4_pass = false;
+  // Third pair: channel 5 (A5→A5) and channel 6 (A6→A6)
+  failsT4  = run_hardware_serial_tests(
+              TXSL_A_PINS[4], TXSR_A_PINS[4],
+              TXSL_A_PINS[5], TXSR_A_PINS[5]
+            );
+  // Fourth pair: channel 7 (A7→A7) and channel 8 (A8→A8)
+  failsT4 += ", " + run_hardware_serial_tests(
+                    TXSL_A_PINS[6], TXSR_A_PINS[6],
+                    TXSL_A_PINS[7], TXSR_A_PINS[7]
+                  );
+  int splitresultT4 = failsT4.indexOf(",");
+  String f4a = failsT4.substring(0, splitresultT4);
+  String f4b = failsT4.substring(splitresultT4 + 2);
+  test4_pass = (f4a == "None" && f4b == "None");
     
-  }
   //––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
   // Aggregate results and set status LEDs
   bool all_passed = std::all_of(test1_high_pass.begin(), test1_high_pass.end(), [](bool v){ return v; }) &&
                     std::all_of(test1_low_pass.begin(),  test1_low_pass.end(),  [](bool v){ return v; }) &&
                     std::all_of(test2_high_pass.begin(), test2_high_pass.end(), [](bool v){ return v; }) &&
-                    std::all_of(test2_low_pass.begin(),  test2_low_pass.end(),  [](bool v){ return v; });
+                    std::all_of(test2_low_pass.begin(),  test2_low_pass.end(),  [](bool v){ return v; }) &&
+                    test3_pass && test4_pass;
+
 
   if (all_passed) {
     digitalWrite(23, HIGH); // D23 high if all tests pass
@@ -264,7 +271,7 @@ void setup() {
   test_results += make_fail_msg(test1_low_pass,  "T1L") + ", ";
   test_results += make_fail_msg(test2_high_pass, "T2H") + ", ";
   test_results += make_fail_msg(test2_low_pass,  "T2L") + ", ";
-  test_results += String("T3U:") + failsT4 + ", ";
+  test_results += String("T3U:") + failsT3 + ", ";
   test_results += String("T4U:") + failsT4;
   output_message += test_results;
   output_message +=  "\"}";
