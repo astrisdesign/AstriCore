@@ -8,9 +8,9 @@ constexpr int TXS_OE = 15;  // Net-(TXS2-INIT/ENA)
 
 // TXS0108E A-side pins (connected to ESP32)
 // TXSL A-side pins
-constexpr int TXSL_A_PINS[] = {13, 12, 14, 27, 26, 25, 33, 32};  // A1-A8
+constexpr int TXSL_A_PINS[] = {13, 12, 14, 27, 26, 25, 33, 32};  // A1-A8 goes top to bottom
 // TXSR A-side pins  
-constexpr int TXSR_A_PINS[] = {21, 19, 18, 5, 17, 16, 4, 2};     // A1-A8
+constexpr int TXSR_A_PINS[] = {2, 4, 16, 17, 5, 18, 19, 21};     // A1-A8 goes bottom to top
 
 String test_diagnostic = "";
 
@@ -57,6 +57,10 @@ void setup() {
   // -------------- Test 1: Steady High, Steady Low, 1->2 ---------------- //
 
   // Test TXS1-->TXS2 in the 'high' direction
+  for (int pin : TXSR_A_PINS) {
+    pinMode(pin, INPUT_PULLUP); // INPUT_PULLDOWN fights TXSR driving high and can confuse drive direction
+  }
+
   for (uint8_t i = 0; i < 8; i++) {
     int outPin = TXSL_A_PINS[i];
     int inPin = TXSR_A_PINS[i];
@@ -67,9 +71,13 @@ void setup() {
     } else {
       test_diagnostic += "A" + String(i + 1) + "+_FAIL ";
     }
+    delay(10);
   }
 
   // Test TXS1-->TXS2 in the 'low' direction
+  for (int pin : TXSR_A_PINS) {
+    pinMode(pin, INPUT_PULLDOWN); // INPUT_PULLDOWN fights TXSR driving high and can confuse drive direction
+  }
   for (uint8_t i = 0; i < 8; i++) {
     int outPin = TXSL_A_PINS[i];
     int inPin = TXSR_A_PINS[i];
@@ -80,7 +88,10 @@ void setup() {
     } else {
       test_diagnostic += "A" + String(i + 1) + "-_FAIL ";
     }
+    delay(10);
   }
+
+  // Test 2: TBD
 }
 
 void loop() {
