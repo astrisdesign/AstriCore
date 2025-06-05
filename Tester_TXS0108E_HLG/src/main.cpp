@@ -1,17 +1,16 @@
 #include <Arduino.h>
 
 // LED pins
-constexpr int LED_PINS[] = {22, 23, 3};  // D22, D23, RX0 (Note that RX0 disables serial send)
+constexpr int LED_PINS[] = {22, 23, 2};  // D22, D23, onboard LED (Note that TX0 and RX0 disable USB serial)
 
-// TXS0108E OE pins
-constexpr int TXS1_OE = 15;  // Net-(TXS1-INIT/ENA)
-constexpr int TXS2_OE = 35;  // Net-(TXS2-INIT/ENA)
+// TXS0108E OE pin
+constexpr int TXS_OE = 15;  // Net-(TXS2-INIT/ENA)
 
 // TXS0108E A-side pins (connected to ESP32)
-// TXS1 A-side pins
-constexpr int TXS1_A_PINS[] = {13, 12, 14, 27, 26, 25, 33, 32};  // A1-A8
-// TXS2 A-side pins  
-constexpr int TXS2_A_PINS[] = {21, 19, 18, 5, 17, 16, 4, 2};     // A1-A8
+// TXSL A-side pins
+constexpr int TXSL_A_PINS[] = {13, 12, 14, 27, 26, 25, 33, 32};  // A1-A8
+// TXSR A-side pins  
+constexpr int TXSR_A_PINS[] = {21, 19, 18, 5, 17, 16, 4, 2};     // A1-A8
 
 String test_diagnostic = "";
 
@@ -20,25 +19,28 @@ void setup() {
   Serial.begin(115200);
   delay(100);
 
-  // Disable TXS chips immediately (they need to be low until VA and VB are power stable)
-  pinMode(TXS1_OE, OUTPUT);
-  pinMode(TXS2_OE, OUTPUT);
-  digitalWrite(TXS1_OE, LOW);
-  digitalWrite(TXS2_OE, LOW);
+  // Keep OE pin as INPUT during reset/boot so GPIO2 (the strapping pin)
+  // isn’t forced low. This lets the ESP32 finish its normal boot.
+  pinMode(TXS_OE, INPUT);
+  delay(250);  // wait for the ESP32 to exit reset
+
+  // Now that boot is done, drive OE low to disable both TXS chips
+  pinMode(TXS_OE, OUTPUT);
+  digitalWrite(TXS_OE, LOW);
 
   // Initialize all TXS1 A-side pins to LOW
-  for (int pin : TXS1_A_PINS) {
+  for (int pin : TXSL_A_PINS) {
     pinMode(pin, OUTPUT);
     digitalWrite(pin, LOW);
   }
 
   // Initialize all TXS2 A-side pins to LOW, then set as inputs for testing
-  for (int pin : TXS2_A_PINS) {
+  for (int pin : TXSR_A_PINS) {
     pinMode(pin, OUTPUT);
     digitalWrite(pin, LOW);
   }
-  for (int pin : TXS2_A_PINS) {
-    pinMode(pin, INPUT);
+  for (int pin : TXSR_A_PINS) {
+    pinMode(pin, INPUT_PULLDOWN);
   }
 
   // Initialize LEDs LOW
@@ -48,17 +50,16 @@ void setup() {
   }
 
   // Initialize the TXS1s
-  delay(500);
-  digitalWrite(TXS1_OE, HIGH);
-  digitalWrite(TXS2_OE, HIGH);
+  delay(250);
+  digitalWrite(TXS_OE, HIGH);
   delay(50);
 
   // -------------- Test 1: Steady High, Steady Low, 1->2 ---------------- //
 
   // Test TXS1-->TXS2 in the 'high' direction
   for (uint8_t i = 0; i < 8; i++) {
-    int outPin = TXS1_A_PINS[i];
-    int inPin = TXS2_A_PINS[i];
+    int outPin = TXSL_A_PINS[i];
+    int inPin = TXSR_A_PINS[i];
     digitalWrite(outPin, HIGH);
     delay(10);
     if (digitalRead(inPin) == HIGH) {
@@ -70,8 +71,8 @@ void setup() {
 
   // Test TXS1-->TXS2 in the 'low' direction
   for (uint8_t i = 0; i < 8; i++) {
-    int outPin = TXS1_A_PINS[i];
-    int inPin = TXS2_A_PINS[i];
+    int outPin = TXSL_A_PINS[i];
+    int inPin = TXSR_A_PINS[i];
     digitalWrite(outPin, LOW);
     delay(10);
     if (digitalRead(inPin) == LOW) {
@@ -94,8 +95,11 @@ void loop() {
     digitalWrite(pin, !digitalRead(pin));
   }
 
-  // Toggle all TXS pins
+  // Toggle all TXS1 pins
+  for (int pin : TXSL_A_PINS) {
+    pinMode(pin, OUTPUT);
+    digitalWrite(pin, !digitalRead(pin));
+  }
 
-
-  delay(250);// Pause before re-sending diagnostic
+  delay(1500); // Pause before re-sending diagnostic
 }
