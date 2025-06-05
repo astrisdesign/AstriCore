@@ -92,6 +92,9 @@ void setup() {
   }
 
   // Test 2: TBD
+
+  pinMode(2, OUTPUT); // Re-enable onboard LED (it's dual-purposed as one of the channel tests)
+  digitalWrite(2, LOW); // onboard LED initially off
 }
 
 void loop() {
