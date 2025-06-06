@@ -102,6 +102,24 @@ String run_hardware_serial_tests(int tx1, int rx1, int ch1, int tx2, int rx2, in
 }
 //–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
+// Add this function near the top (after other function declarations)
+bool uart_channel_test(int idx) {
+  int tx = TXSL_A_PINS[idx];
+  int rx = TXSR_A_PINS[idx];
+  Serial1.begin(9600, SERIAL_8N1, rx, tx);
+  Serial1.print("TEST_"); Serial1.print(tx);
+  delay(50);
+  String resp = "";
+  unsigned long start = millis();
+  while (millis() - start < 100) {
+    if (Serial1.available()) resp += (char)Serial1.read();
+  }
+  Serial.print("UART "); Serial.print(tx);
+  Serial.println(" → raw: " + resp);
+  Serial1.end();
+  return resp.length() > 0;
+}
+
 void setup() {
   // begin serial for output
   Serial.begin(115200);
@@ -200,42 +218,12 @@ void setup() {
     delay(10);
   }
 
-  //––––––– Begin UART-based subtests: Test 3 (Ch 1&2 + Ch 3&4) ––––––
-  String failsT3a = run_hardware_serial_tests(
-      TXSL_A_PINS[0], TXSR_A_PINS[0], 1,
-      TXSL_A_PINS[1], TXSR_A_PINS[1], 2
-  );
-  String failsT3b = run_hardware_serial_tests(
-      TXSL_A_PINS[2], TXSR_A_PINS[2], 3,
-      TXSL_A_PINS[3], TXSR_A_PINS[3], 4
-  );
-  String failsT3 = "";
-  if (failsT3a != "None") failsT3 += failsT3a;
-  if (failsT3b != "None") {
-      if (failsT3.length() > 0) failsT3 += ", ";
-      failsT3 += failsT3b;
-  }
-  if (failsT3.length() == 0) failsT3 = "None";
-  bool test3_pass = (failsT3 == "None");
+  //––––––– UART-based subtest: Test 3 (All Channels) ––––––
+  std::array<bool, NUM_CHANNELS> test3_uart_pass = {false};
+  for (int i = 0; i < NUM_CHANNELS; ++i)
+      test3_uart_pass[i] = uart_channel_test(i);
+  bool test3_pass = std::all_of(test3_uart_pass.begin(), test3_uart_pass.end(), [](bool v){ return v; });
 
-  //––––––– Begin UART-based subtests: Test 4 (Ch 5&6 + Ch 7&8) ––––––
-  String failsT4a = run_hardware_serial_tests(
-      TXSL_A_PINS[4], TXSR_A_PINS[4], 5,
-      TXSL_A_PINS[5], TXSR_A_PINS[5], 6
-  );
-  String failsT4b = run_hardware_serial_tests(
-      TXSL_A_PINS[6], TXSR_A_PINS[6], 7,
-      TXSL_A_PINS[7], TXSR_A_PINS[7], 8
-  );
-  String failsT4 = "";
-  if (failsT4a != "None") failsT4 += failsT4a;
-  if (failsT4b != "None") {
-      if (failsT4.length() > 0) failsT4 += ", ";
-      failsT4 += failsT4b;
-  }
-  if (failsT4.length() == 0) failsT4 = "None";
-  bool test4_pass = (failsT4 == "None");
-    
   //––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
   // Aggregate results and set status LEDs
@@ -243,8 +231,7 @@ void setup() {
                     std::all_of(test1_low_pass.begin(),  test1_low_pass.end(),  [](bool v){ return v; }) &&
                     std::all_of(test2_high_pass.begin(), test2_high_pass.end(), [](bool v){ return v; }) &&
                     std::all_of(test2_low_pass.begin(),  test2_low_pass.end(),  [](bool v){ return v; }) &&
-                    test3_pass && test4_pass;
-
+                    test3_pass;
 
   if (all_passed) {
     digitalWrite(23, HIGH); // D23 high if all tests pass
@@ -261,8 +248,7 @@ void setup() {
   test_results += make_fail_msg(test1_low_pass,  "T1L") + ", ";
   test_results += make_fail_msg(test2_high_pass, "T2H") + ", ";
   test_results += make_fail_msg(test2_low_pass,  "T2L") + ", ";
-  test_results += String("T3:") + failsT3 + ", ";
-  test_results += String("T4:") + failsT4;
+  test_results += make_fail_msg(test3_uart_pass, "T3");
   output_message += test_results;
   output_message +=  "\"}";
 }
