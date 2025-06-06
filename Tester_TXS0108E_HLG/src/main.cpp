@@ -11,7 +11,7 @@ struct HardwareSerialTest {
   String test_name;
 };
 
-// forward-declare the new version (takes four pins, returns failed-pin String or "None")
+// forward-declare the serial test function
 String run_hardware_serial_tests(int tx1, int rx1, int ch1, int tx2, int rx2, int ch2);
 
 // LED pins
@@ -26,7 +26,7 @@ constexpr int TXSL_A_PINS[] = {13, 12, 14, 27, 26, 25, 33, 32};  // A1-A8 goes t
 // TXSR A-side pins  
 constexpr int TXSR_A_PINS[] = {2, 4, 16, 17, 5, 18, 19, 21};     // A1-A8 goes bottom to top
 
-// New: record UART subtest pass/fail for channel 1 and 2
+// Record UART subtest pass/fail for channel 1 and 2
 bool test_uart_ch1 = false;
 bool test_uart_ch2 = false;
 
@@ -55,7 +55,7 @@ String make_fail_msg(const std::array<bool, NUM_CHANNELS>& test, const char* lab
   return msg;
 }
 
-//–––––– Run two UART‐driven channel tests at once, now reports channel numbers ––––––
+//–––––– Run two UART‐driven channel tests at once, report any failed channel numbers ––––––
 String run_hardware_serial_tests(int tx1, int rx1, int ch1, int tx2, int rx2, int ch2) {
   // 1) Begin each UART with the given pins at 9600 baud
   Serial1.begin(9600, SERIAL_8N1, rx1, tx1);
@@ -102,7 +102,7 @@ String run_hardware_serial_tests(int tx1, int rx1, int ch1, int tx2, int rx2, in
 }
 //–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
-// Add this function near the top (after other function declarations)
+// Left to right uart test
 bool uart_channel_test(int idx) {
   int tx = TXSL_A_PINS[idx];
   int rx = TXSR_A_PINS[idx];
@@ -115,6 +115,24 @@ bool uart_channel_test(int idx) {
     if (Serial1.available()) resp += (char)Serial1.read();
   }
   Serial.print("UART "); Serial.print(tx);
+  Serial.println(" → raw: " + resp);
+  Serial1.end();
+  return resp.length() > 0;
+}
+
+// right to left uart test
+bool uart_channel_test_reverse(int idx) {
+  int tx = TXSR_A_PINS[idx];
+  int rx = TXSL_A_PINS[idx];
+  Serial1.begin(9600, SERIAL_8N1, rx, tx);
+  Serial1.print("TEST_"); Serial1.print(tx);
+  delay(50);
+  String resp = "";
+  unsigned long start = millis();
+  while (millis() - start < 100) {
+    if (Serial1.available()) resp += (char)Serial1.read();
+  }
+  Serial.print("UART_REV "); Serial.print(tx);
   Serial.println(" → raw: " + resp);
   Serial1.end();
   return resp.length() > 0;
@@ -224,6 +242,12 @@ void setup() {
       test3_uart_pass[i] = uart_channel_test(i);
   bool test3_pass = std::all_of(test3_uart_pass.begin(), test3_uart_pass.end(), [](bool v){ return v; });
 
+  //––––––– UART-based subtest: Test 4 (Reverse, All Channels) ––––––
+  std::array<bool, NUM_CHANNELS> test4_uart_pass = {false};
+  for (int i = 0; i < NUM_CHANNELS; ++i)
+      test4_uart_pass[i] = uart_channel_test_reverse(i);
+  bool test4_pass = std::all_of(test4_uart_pass.begin(), test4_uart_pass.end(), [](bool v){ return v; });
+
   //––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
   // Aggregate results and set status LEDs
@@ -231,7 +255,7 @@ void setup() {
                     std::all_of(test1_low_pass.begin(),  test1_low_pass.end(),  [](bool v){ return v; }) &&
                     std::all_of(test2_high_pass.begin(), test2_high_pass.end(), [](bool v){ return v; }) &&
                     std::all_of(test2_low_pass.begin(),  test2_low_pass.end(),  [](bool v){ return v; }) &&
-                    test3_pass;
+                    test3_pass && test4_pass;
 
   if (all_passed) {
     digitalWrite(23, HIGH); // D23 high if all tests pass
@@ -248,7 +272,8 @@ void setup() {
   test_results += make_fail_msg(test1_low_pass,  "T1L") + ", ";
   test_results += make_fail_msg(test2_high_pass, "T2H") + ", ";
   test_results += make_fail_msg(test2_low_pass,  "T2L") + ", ";
-  test_results += make_fail_msg(test3_uart_pass, "T3");
+  test_results += make_fail_msg(test3_uart_pass, "T3") + ", ";
+  test_results += make_fail_msg(test4_uart_pass, "T4");
   output_message += test_results;
   output_message +=  "\"}";
 }
