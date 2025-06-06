@@ -12,7 +12,7 @@ struct HardwareSerialTest {
 };
 
 // forward-declare the new version (takes four pins, returns failed-pin String or "None")
-String run_hardware_serial_tests(int tx1, int rx1, int tx2, int rx2);
+String run_hardware_serial_tests(int tx1, int rx1, int ch1, int tx2, int rx2, int ch2);
 
 // LED pins
 constexpr int LED_PINS[] = {22, 23, 2};  // D22, D23, onboard LED (Note that TX0 and RX0 disable USB serial)
@@ -55,13 +55,8 @@ String make_fail_msg(const std::array<bool, NUM_CHANNELS>& test, const char* lab
   return msg;
 }
 
-//–––––– Run two UART‐driven channel tests at once, but now PARAMETERIZED ––––––
-String run_hardware_serial_tests(int tx1, int rx1, int tx2, int rx2) {
-  // tx1 = GPIO for TXSL-A of first channel
-  // rx1 = GPIO for TXSR-A of first channel
-  // tx2 = GPIO for TXSL-A of second channel
-  // rx2 = GPIO for TXSR-A of second channel
-
+//–––––– Run two UART‐driven channel tests at once, now reports channel numbers ––––––
+String run_hardware_serial_tests(int tx1, int rx1, int ch1, int tx2, int rx2, int ch2) {
   // 1) Begin each UART with the given pins at 9600 baud
   Serial1.begin(9600, SERIAL_8N1, rx1, tx1);
   Serial2.begin(9600, SERIAL_8N1, rx2, tx2);
@@ -69,7 +64,7 @@ String run_hardware_serial_tests(int tx1, int rx1, int tx2, int rx2) {
   // 2) Send a short ASCII test string on each UART
   Serial1.print("TEST_"); Serial1.print(tx1);  // embed pin in payload if you like
   Serial2.print("TEST_"); Serial2.print(tx2);
-  delay(50);  // let the TXS0108E auto-direction latch the level
+  delay(50);
 
   // 3) Collect incoming bytes (with a 100 ms timeout)
   String resp1 = "";
@@ -86,22 +81,17 @@ String run_hardware_serial_tests(int tx1, int rx1, int tx2, int rx2) {
   Serial.print("UART "); Serial.print(tx2);
   Serial.println(" → raw: " + resp2);
 
-  // 5) Build a list of any failed A-side TX pins:
-  // If resp is empty, that channel "failed." Return the A-pin number itself.
+  // 5) Build a list of any failed channel numbers:
   std::array<String,2> failedList = { "", "" };
   int failCount = 0;
-  if (resp1.length() == 0) {
-    failedList[failCount++] = String(tx1);
-  }
-  if (resp2.length() == 0) {
-    failedList[failCount++] = String(tx2);
-  }
+  if (resp1.length() == 0) failedList[failCount++] = String(ch1);
+  if (resp2.length() == 0) failedList[failCount++] = String(ch2);
 
   // 6) Teardown both UARTs so pins can be reused
   Serial1.end();
   Serial2.end();
 
-  // 7) Return "None" if none failed, else join the failed pin(s) with ", "
+  // 7) Return "None" if none failed, else join the failed channel(s) with ", "
   if (failCount == 0) {
     return String("None");
   } else if (failCount == 1) {
@@ -211,40 +201,40 @@ void setup() {
   }
 
   //––––––– Begin UART-based subtests: Test 3 (Ch 1&2 + Ch 3&4) ––––––
+  String failsT3a = run_hardware_serial_tests(
+      TXSL_A_PINS[0], TXSR_A_PINS[0], 1,
+      TXSL_A_PINS[1], TXSR_A_PINS[1], 2
+  );
+  String failsT3b = run_hardware_serial_tests(
+      TXSL_A_PINS[2], TXSR_A_PINS[2], 3,
+      TXSL_A_PINS[3], TXSR_A_PINS[3], 4
+  );
   String failsT3 = "";
-  bool test3_pass = false;
-  // First pair: channel 1 (A1→A1) and channel 2 (A2→A2)
-  failsT3  = run_hardware_serial_tests(
-              TXSL_A_PINS[0], TXSR_A_PINS[0],
-              TXSL_A_PINS[1], TXSR_A_PINS[1]
-            );
-  // Second pair: channel 3 (A3→A3) and channel 4 (A4→A4)
-  failsT3 += ", " + run_hardware_serial_tests(
-                    TXSL_A_PINS[2], TXSR_A_PINS[2],
-                    TXSL_A_PINS[3], TXSR_A_PINS[3]
-                  );
-  int splitresultT3 = failsT3.indexOf(","); 
-  String f3a = failsT3.substring(0, splitresultT3);
-  String f3b = failsT3.substring(splitresultT3 + 2);
-  test3_pass = (f3a == "None" && f3b == "None");
+  if (failsT3a != "None") failsT3 += failsT3a;
+  if (failsT3b != "None") {
+      if (failsT3.length() > 0) failsT3 += ", ";
+      failsT3 += failsT3b;
+  }
+  if (failsT3.length() == 0) failsT3 = "None";
+  bool test3_pass = (failsT3 == "None");
 
   //––––––– Begin UART-based subtests: Test 4 (Ch 5&6 + Ch 7&8) ––––––
+  String failsT4a = run_hardware_serial_tests(
+      TXSL_A_PINS[4], TXSR_A_PINS[4], 5,
+      TXSL_A_PINS[5], TXSR_A_PINS[5], 6
+  );
+  String failsT4b = run_hardware_serial_tests(
+      TXSL_A_PINS[6], TXSR_A_PINS[6], 7,
+      TXSL_A_PINS[7], TXSR_A_PINS[7], 8
+  );
   String failsT4 = "";
-  bool test4_pass = false;
-  // Third pair: channel 5 (A5→A5) and channel 6 (A6→A6)
-  failsT4  = run_hardware_serial_tests(
-              TXSL_A_PINS[4], TXSR_A_PINS[4],
-              TXSL_A_PINS[5], TXSR_A_PINS[5]
-            );
-  // Fourth pair: channel 7 (A7→A7) and channel 8 (A8→A8)
-  failsT4 += ", " + run_hardware_serial_tests(
-                    TXSL_A_PINS[6], TXSR_A_PINS[6],
-                    TXSL_A_PINS[7], TXSR_A_PINS[7]
-                  );
-  int splitresultT4 = failsT4.indexOf(",");
-  String f4a = failsT4.substring(0, splitresultT4);
-  String f4b = failsT4.substring(splitresultT4 + 2);
-  test4_pass = (f4a == "None" && f4b == "None");
+  if (failsT4a != "None") failsT4 += failsT4a;
+  if (failsT4b != "None") {
+      if (failsT4.length() > 0) failsT4 += ", ";
+      failsT4 += failsT4b;
+  }
+  if (failsT4.length() == 0) failsT4 = "None";
+  bool test4_pass = (failsT4 == "None");
     
   //––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
@@ -271,8 +261,8 @@ void setup() {
   test_results += make_fail_msg(test1_low_pass,  "T1L") + ", ";
   test_results += make_fail_msg(test2_high_pass, "T2H") + ", ";
   test_results += make_fail_msg(test2_low_pass,  "T2L") + ", ";
-  test_results += String("T3U:") + failsT3 + ", ";
-  test_results += String("T4U:") + failsT4;
+  test_results += String("T3:") + failsT3 + ", ";
+  test_results += String("T4:") + failsT4;
   output_message += test_results;
   output_message +=  "\"}";
 }
